@@ -6,5 +6,5 @@ export function PropertiesPanel() {
         Select a building to edit its properties.
       </p>
     </aside>
-  )
+  );
 }

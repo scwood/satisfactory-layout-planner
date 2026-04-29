@@ -1,6 +1,6 @@
-import { CanvasStage } from '@/components/canvas/CanvasStage'
-import { Toolbar } from '@/components/panels/Toolbar'
-import { PropertiesPanel } from '@/components/panels/PropertiesPanel'
+import { CanvasStage } from "@/components/canvas/CanvasStage";
+import { Toolbar } from "@/components/panels/Toolbar";
+import { PropertiesPanel } from "@/components/panels/PropertiesPanel";
 
 function App() {
   return (
@@ -13,7 +13,7 @@ function App() {
         <PropertiesPanel />
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
