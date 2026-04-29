@@ -33,6 +33,7 @@ src/
     ui/           shadcn/ui components (auto-generated)
   store/          Zustand stores (layoutStore.ts is the main one)
   types/          Domain types (PlacedBuilding, BuildingType, etc.)
+  data/           Hardcoded catalogs (buildings.ts is the buildables list)
   lib/            Constants and pure utilities (cn, conversions)
   hooks/          React hooks (created on demand)
 ```
@@ -41,7 +42,9 @@ Path alias `@/` resolves to `src/`.
 
 ## Conventions
 
-- Buildings are stored as a `Record<BuildingId, PlacedBuilding>` keyed by id, not as an array — selection and updates stay O(1).
+- A user can have multiple named **layouts**. The store holds `layouts: Record<LayoutId, Layout>` plus `layoutOrder` and `currentLayoutId`; selection and clipboard live at the top level and apply to the current layout.
+- Within a layout, buildings are stored as a `Record<BuildingId, PlacedBuilding>` keyed by id, not as an array — selection and updates stay O(1).
+- Building mutations (`addBuilding`, `updateBuilding`, `removeBuildings`, etc.) always operate on the current layout. Bump the persist `version` and add a `migrate` step when changing the persisted shape.
 - Snap rounding is centralized; do not re-implement `Math.round(x / GRID)` inline.
 - Konva `dragBoundFunc` is the canonical place to enforce snapping during drag.
 - For copy/paste, store building data in the Zustand `clipboard` field — do **not** use the system clipboard API.
