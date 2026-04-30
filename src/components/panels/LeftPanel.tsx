@@ -120,10 +120,13 @@ export function LeftPanel() {
               type="button"
               onClick={() => window.dispatchEvent(new Event("fit-view"))}
               className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent"
-              title="Fit view to content (Shift+1)"
+              title="Fit view to content"
             >
               <Maximize className="h-4 w-4 shrink-0" />
-              Fit view
+              <span className="flex-1 truncate">Fit view</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                Shift + 1
+              </span>
             </button>
           </li>
         </ul>
