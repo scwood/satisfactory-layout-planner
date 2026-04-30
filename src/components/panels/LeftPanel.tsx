@@ -126,7 +126,7 @@ export function LeftPanel() {
               title="Fit view to content"
             >
               <Maximize className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">Fit view</span>
+              <span className="flex-1 truncate">Zoom to fit</span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 Shift + 1
               </span>

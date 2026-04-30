@@ -29,7 +29,7 @@ GitHub Pages, via `npm run deploy` (uses `gh-pages` to publish `dist/`). The Vit
 src/
   components/
     canvas/       Konva stage, building shapes, grid, transformer
-    panels/       Toolbar, properties panel, sidebars
+    panels/       Toolbar, left and right panels
     ui/           shadcn/ui components (auto-generated)
   store/          Zustand stores (layoutStore.ts is the main one)
   types/          Domain types (PlacedBuilding, BuildingType, etc.)

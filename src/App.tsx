@@ -1,7 +1,7 @@
 import { CanvasStage } from "@/components/canvas/CanvasStage";
 import { Toolbar } from "@/components/panels/Toolbar";
 import { LeftPanel } from "@/components/panels/LeftPanel";
-import { BuildablesPanel } from "@/components/panels/BuildablesPanel";
+import { RightPanel } from "@/components/panels/RightPanel";
 
 function App() {
   return (
@@ -12,7 +12,7 @@ function App() {
         <main className="relative flex-1 overflow-hidden">
           <CanvasStage />
         </main>
-        <BuildablesPanel />
+        <RightPanel />
       </div>
     </div>
   );
