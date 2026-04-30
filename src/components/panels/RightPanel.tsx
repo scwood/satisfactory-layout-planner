@@ -20,14 +20,9 @@ export function RightPanel() {
               onClick={() => addBuildingFromType(type.key)}
               className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent"
             >
-              <span
-                className="h-4 w-4 shrink-0 rounded-sm border"
-                style={{ backgroundColor: type.color }}
-                aria-hidden
-              />
               <span className="flex-1 truncate">{type.name}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
-                {type.widthMeters}×{type.depthMeters}m
+                {type.widthMeters}×{type.lengthMeters}m
               </span>
             </button>
           </li>

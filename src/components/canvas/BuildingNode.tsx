@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Group, Rect, Text } from "react-konva";
+import { useEffect, useMemo, useState } from "react";
+import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 import type Konva from "konva";
 import type { PlacedBuilding } from "@/types/building";
 import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
@@ -16,6 +16,36 @@ interface BuildingNodeProps {
   registerNode: (id: string, node: Konva.Node | null) => void;
 }
 
+const imageCache = new Map<string, HTMLImageElement>();
+
+function useBuildingImage(src: string | undefined) {
+  const [prevSrc, setPrevSrc] = useState(src);
+  const [image, setImage] = useState<HTMLImageElement | undefined>(() =>
+    src ? imageCache.get(src) : undefined,
+  );
+
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setImage(src ? imageCache.get(src) : undefined);
+  }
+
+  useEffect(() => {
+    if (!src || imageCache.has(src)) return;
+    let cancelled = false;
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      imageCache.set(src, img);
+      if (!cancelled) setImage(img);
+    };
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return image;
+}
+
 export function BuildingNode({
   building,
   selected,
@@ -26,6 +56,7 @@ export function BuildingNode({
   registerNode,
 }: BuildingNodeProps) {
   const type = BUILDING_TYPES_BY_KEY[building.typeKey];
+  const image = useBuildingImage(type?.image);
 
   const dragBoundFunc = useMemo(() => {
     return function (this: Konva.Node, pos: { x: number; y: number }) {
@@ -59,7 +90,7 @@ export function BuildingNode({
   const hPx = effD * PIXELS_PER_METER;
 
   const rawW = type.widthMeters * PIXELS_PER_METER;
-  const rawH = type.depthMeters * PIXELS_PER_METER;
+  const rawH = type.lengthMeters * PIXELS_PER_METER;
 
   return (
     <Group
@@ -111,25 +142,61 @@ export function BuildingNode({
         offsetX={rawW / 2}
         offsetY={rawH / 2}
       >
+        {image ? (
+          (() => {
+            const guide = type.imageGuide ?? { x: 0, y: 0, w: 1, h: 1 };
+            const naturalW = image.naturalWidth || rawW;
+            const naturalH = image.naturalHeight || rawH;
+            // Scale X and Y independently so each guide value is self-
+            // contained: w controls horizontal fit, h controls vertical fit.
+            // If the configured guide aspect doesn't match the footprint, the
+            // image will be stretched — that's a useful tuning signal.
+            const scaleX = rawW / (guide.w * naturalW);
+            const scaleY = rawH / (guide.h * naturalH);
+            const drawW = naturalW * scaleX;
+            const drawH = naturalH * scaleY;
+            const offX = -guide.x * naturalW * scaleX;
+            const offY = -guide.y * naturalH * scaleY;
+            return (
+              <KonvaImage
+                image={image}
+                x={offX}
+                y={offY}
+                width={drawW}
+                height={drawH}
+                perfectDrawEnabled={false}
+              />
+            );
+          })()
+        ) : (
+          <Rect
+            width={rawW}
+            height={rawH}
+            strokeScaleEnabled={false}
+            perfectDrawEnabled={false}
+          />
+        )}
         <Rect
           width={rawW}
           height={rawH}
-          fill={type.color}
           stroke={selected ? "oklch(0.55 0.2 250)" : "oklch(0.4 0 0)"}
           strokeWidth={selected ? 2 : 1}
           strokeScaleEnabled={false}
           perfectDrawEnabled={false}
-        />
-        <Text
-          text={type.name}
-          fontSize={10}
-          fill="oklch(0.2 0 0)"
-          width={rawW}
-          height={rawH}
-          align="center"
-          verticalAlign="middle"
           listening={false}
         />
+        {!image && (
+          <Text
+            text={type.name}
+            fontSize={10}
+            fill="oklch(0.2 0 0)"
+            width={rawW}
+            height={rawH}
+            align="center"
+            verticalAlign="middle"
+            listening={false}
+          />
+        )}
       </Group>
     </Group>
   );

@@ -476,6 +476,8 @@ export function CanvasStage() {
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
+  // bg-muted/20
+
   return (
     <div
       ref={containerRef}

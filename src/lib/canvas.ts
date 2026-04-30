@@ -22,8 +22,8 @@ export const clampScale = (s: number) =>
 export function effectiveFootprint(type: BuildingType, rotationDeg: number) {
   const swap = rotationDeg === 90 || rotationDeg === 270;
   return {
-    widthMeters: swap ? type.depthMeters : type.widthMeters,
-    depthMeters: swap ? type.widthMeters : type.depthMeters,
+    widthMeters: swap ? type.lengthMeters : type.widthMeters,
+    depthMeters: swap ? type.widthMeters : type.lengthMeters,
   };
 }
 

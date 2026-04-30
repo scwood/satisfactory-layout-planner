@@ -6,8 +6,15 @@ export interface BuildingType {
   key: BuildingTypeKey;
   name: string;
   widthMeters: number;
-  depthMeters: number;
-  color: string;
+  lengthMeters: number;
+  image?: string;
+  /**
+   * Position of the in-image guide rectangle (matching the building footprint)
+   * as normalized fractions of the image's natural dimensions. The image is
+   * drawn so this rectangle aligns with the footprint; artwork outside it
+   * bleeds beyond the footprint, mirroring the in-game appearance.
+   */
+  imageGuide?: { x: number; y: number; w: number; h: number };
 }
 
 export interface PlacedBuilding {
