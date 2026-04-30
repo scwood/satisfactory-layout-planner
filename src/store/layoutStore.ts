@@ -139,7 +139,30 @@ export const useLayoutStore = create<LayoutState>()(
         },
 
         pasteClipboard: () => {
-          // Implementation pending — needs id generation + offset
+          const { clipboard } = get();
+          if (clipboard.length === 0) return;
+          const offset = snap(2);
+          const newIds: BuildingId[] = [];
+          const newBuildings: Record<BuildingId, PlacedBuilding> = {};
+          for (const b of clipboard) {
+            const id = newId();
+            newIds.push(id);
+            newBuildings[id] = {
+              ...b,
+              id,
+              xMeters: snap(b.xMeters + offset),
+              yMeters: snap(b.yMeters + offset),
+            };
+          }
+          set((s) => ({
+            ...updateCurrent(s, (l) => ({
+              ...l,
+              buildings: { ...l.buildings, ...newBuildings },
+            })),
+            selectedIds: newIds,
+            // Update the clipboard so a subsequent paste cascades further.
+            clipboard: Object.values(newBuildings),
+          }));
         },
 
         clearAll: () =>
