@@ -26,6 +26,9 @@ interface LayoutState {
   addBuilding: (building: PlacedBuilding) => void;
   addBuildingFromType: (typeKey: BuildingTypeKey) => void;
   updateBuilding: (id: BuildingId, patch: Partial<PlacedBuilding>) => void;
+  updateBuildings: (
+    updates: Array<{ id: BuildingId; patch: Partial<PlacedBuilding> }>,
+  ) => void;
   removeBuildings: (ids: BuildingId[]) => void;
   setSelection: (ids: BuildingId[]) => void;
   copySelection: () => void;
@@ -112,6 +115,19 @@ export const useLayoutStore = create<LayoutState>()(
                 ...l,
                 buildings: { ...l.buildings, [id]: { ...existing, ...patch } },
               };
+            }),
+          ),
+
+        updateBuildings: (updates) =>
+          set((s) =>
+            updateCurrent(s, (l) => {
+              const next = { ...l.buildings };
+              for (const { id, patch } of updates) {
+                const existing = next[id];
+                if (!existing) continue;
+                next[id] = { ...existing, ...patch };
+              }
+              return { ...l, buildings: next };
             }),
           ),
 

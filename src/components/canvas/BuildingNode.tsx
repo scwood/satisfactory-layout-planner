@@ -10,14 +10,20 @@ interface BuildingNodeProps {
   building: PlacedBuilding;
   selected: boolean;
   onSelect: (id: string, additive: boolean) => void;
+  onDragStart: (id: string) => void;
+  onDragMove: (id: string, xMeters: number, yMeters: number) => void;
   onDragEnd: (id: string, xMeters: number, yMeters: number) => void;
+  registerNode: (id: string, node: Konva.Node | null) => void;
 }
 
 export function BuildingNode({
   building,
   selected,
   onSelect,
+  onDragStart,
+  onDragMove,
   onDragEnd,
+  registerNode,
 }: BuildingNodeProps) {
   const type = BUILDING_TYPES_BY_KEY[building.typeKey];
 
@@ -57,6 +63,10 @@ export function BuildingNode({
 
   return (
     <Group
+      ref={(node) => {
+        registerNode(building.id, node);
+        return () => registerNode(building.id, null);
+      }}
       x={xPx}
       y={yPx}
       draggable
@@ -68,6 +78,15 @@ export function BuildingNode({
       onTap={(e) => {
         e.cancelBubble = true;
         onSelect(building.id, e.evt.shiftKey);
+      }}
+      onDragStart={() => onDragStart(building.id)}
+      onDragMove={(e) => {
+        const node = e.target;
+        onDragMove(
+          building.id,
+          node.x() / PIXELS_PER_METER,
+          node.y() / PIXELS_PER_METER,
+        );
       }}
       onDragEnd={(e) => {
         // node.x()/y() are already in world-pixel space (parent Layer has no

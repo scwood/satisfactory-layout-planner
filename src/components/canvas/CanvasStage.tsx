@@ -65,9 +65,16 @@ export function CanvasStage() {
   const selectedIds = useLayoutStore((s) => s.selectedIds);
   const setSelection = useLayoutStore((s) => s.setSelection);
   const updateBuilding = useLayoutStore((s) => s.updateBuilding);
+  const updateBuildings = useLayoutStore((s) => s.updateBuildings);
   const removeBuildings = useLayoutStore((s) => s.removeBuildings);
   const copySelection = useLayoutStore((s) => s.copySelection);
   const pasteClipboard = useLayoutStore((s) => s.pasteClipboard);
+
+  const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
+  const dragSnapshotRef = useRef<{
+    primaryId: string;
+    starts: Map<string, { x: number; y: number }>;
+  } | null>(null);
 
   const buildings = useMemo(
     () => (layout ? Object.values(layout.buildings) : []),
@@ -318,27 +325,88 @@ export function CanvasStage() {
 
   const handleSelectBuilding = useCallback(
     (id: string, additive: boolean) => {
+      const current = useLayoutStore.getState().selectedIds;
       if (additive) {
-        const current = useLayoutStore.getState().selectedIds;
         if (current.includes(id)) {
           setSelection(current.filter((s) => s !== id));
         } else {
           setSelection([...current, id]);
         }
       } else {
-        const current = useLayoutStore.getState().selectedIds;
-        if (current.length === 1 && current[0] === id) return;
+        // If this id is already in the selection, leave it alone — preserves
+        // multi-select so a subsequent drag can move all selected buildings.
+        if (current.includes(id)) return;
         setSelection([id]);
       }
     },
     [setSelection],
   );
 
+  const registerNode = useCallback((id: string, node: Konva.Node | null) => {
+    if (node) nodeRefs.current.set(id, node);
+    else nodeRefs.current.delete(id);
+  }, []);
+
+  const handleDragStart = useCallback((id: string) => {
+    const state = useLayoutStore.getState();
+    const ids = state.selectedIds.includes(id) ? state.selectedIds : [id];
+    const current = state.layouts[state.currentLayoutId];
+    if (!current) return;
+    const starts = new Map<string, { x: number; y: number }>();
+    for (const sid of ids) {
+      const b = current.buildings[sid];
+      if (!b) continue;
+      starts.set(sid, { x: b.xMeters, y: b.yMeters });
+    }
+    dragSnapshotRef.current = { primaryId: id, starts };
+  }, []);
+
+  const handleDragMove = useCallback(
+    (id: string, xMeters: number, yMeters: number) => {
+      const snap = dragSnapshotRef.current;
+      if (!snap || snap.primaryId !== id) return;
+      const primaryStart = snap.starts.get(id);
+      if (!primaryStart) return;
+      const dx = xMeters - primaryStart.x;
+      const dy = yMeters - primaryStart.y;
+      for (const [sid, start] of snap.starts) {
+        if (sid === id) continue;
+        const node = nodeRefs.current.get(sid);
+        if (!node) continue;
+        node.position({
+          x: (start.x + dx) * PIXELS_PER_METER,
+          y: (start.y + dy) * PIXELS_PER_METER,
+        });
+      }
+    },
+    [],
+  );
+
   const handleDragEnd = useCallback(
     (id: string, xMeters: number, yMeters: number) => {
-      updateBuilding(id, { xMeters, yMeters });
+      const snap = dragSnapshotRef.current;
+      dragSnapshotRef.current = null;
+      if (!snap || snap.primaryId !== id || snap.starts.size <= 1) {
+        updateBuilding(id, { xMeters, yMeters });
+        return;
+      }
+      const primaryStart = snap.starts.get(id);
+      if (!primaryStart) {
+        updateBuilding(id, { xMeters, yMeters });
+        return;
+      }
+      const dx = xMeters - primaryStart.x;
+      const dy = yMeters - primaryStart.y;
+      const updates = Array.from(snap.starts).map(([sid, start]) => ({
+        id: sid,
+        patch: {
+          xMeters: snapMeters(start.x + dx),
+          yMeters: snapMeters(start.y + dy),
+        },
+      }));
+      updateBuildings(updates);
     },
-    [updateBuilding],
+    [updateBuilding, updateBuildings],
   );
 
   const cursor = panning
@@ -403,7 +471,10 @@ export function CanvasStage() {
                 building={b}
                 selected={selectedSet.has(b.id)}
                 onSelect={handleSelectBuilding}
+                onDragStart={handleDragStart}
+                onDragMove={handleDragMove}
                 onDragEnd={handleDragEnd}
+                registerNode={registerNode}
               />
             ))}
           </Layer>
