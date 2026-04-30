@@ -170,6 +170,36 @@ export function CanvasStage() {
     return () => window.removeEventListener("fit-view", handler);
   }, [fitView]);
 
+  const rotateSelection = useCallback(() => {
+    const state = useLayoutStore.getState();
+    if (state.selectedIds.length === 0) return;
+    const current = state.layouts[state.currentLayoutId];
+    if (!current) return;
+    for (const id of state.selectedIds) {
+      const b = current.buildings[id];
+      if (!b) continue;
+      const type = BUILDING_TYPES_BY_KEY[b.typeKey];
+      if (!type) continue;
+      const oldEff = effectiveFootprint(type, b.rotationDeg);
+      const newRot = ((b.rotationDeg + 90) % 360) as 0 | 90 | 180 | 270;
+      const newEff = effectiveFootprint(type, newRot);
+      // Rotate around the AABB center.
+      const cx = b.xMeters + oldEff.widthMeters / 2;
+      const cy = b.yMeters + oldEff.depthMeters / 2;
+      updateBuilding(id, {
+        rotationDeg: newRot,
+        xMeters: snapMeters(cx - newEff.widthMeters / 2),
+        yMeters: snapMeters(cy - newEff.depthMeters / 2),
+      });
+    }
+  }, [updateBuilding]);
+
+  useEffect(() => {
+    const handler = () => rotateSelection();
+    window.addEventListener("rotate-selection", handler);
+    return () => window.removeEventListener("rotate-selection", handler);
+  }, [rotateSelection]);
+
   // Fit view when the active layout changes, once the canvas has dimensions.
   const hasSize = size.width > 0;
   useEffect(() => {
@@ -192,28 +222,7 @@ export function CanvasStage() {
       } else if ((e.key === "r" || e.key === "R") && !ctrl) {
         if (selectedIds.length === 0) return;
         e.preventDefault();
-        const current =
-          useLayoutStore.getState().layouts[
-            useLayoutStore.getState().currentLayoutId
-          ];
-        if (!current) return;
-        for (const id of selectedIds) {
-          const b = current.buildings[id];
-          if (!b) continue;
-          const type = BUILDING_TYPES_BY_KEY[b.typeKey];
-          if (!type) continue;
-          const oldEff = effectiveFootprint(type, b.rotationDeg);
-          const newRot = ((b.rotationDeg + 90) % 360) as 0 | 90 | 180 | 270;
-          const newEff = effectiveFootprint(type, newRot);
-          // Rotate around the AABB center.
-          const cx = b.xMeters + oldEff.widthMeters / 2;
-          const cy = b.yMeters + oldEff.depthMeters / 2;
-          updateBuilding(id, {
-            rotationDeg: newRot,
-            xMeters: snapMeters(cx - newEff.widthMeters / 2),
-            yMeters: snapMeters(cy - newEff.depthMeters / 2),
-          });
-        }
+        rotateSelection();
       } else if (ctrl && (e.key === "c" || e.key === "C")) {
         if (selectedIds.length === 0) return;
         e.preventDefault();
@@ -240,10 +249,10 @@ export function CanvasStage() {
     selectedIds,
     removeBuildings,
     setSelection,
-    updateBuilding,
     copySelection,
     pasteClipboard,
     fitView,
+    rotateSelection,
   ]);
 
   // Convert a stage pointer position to world meters.

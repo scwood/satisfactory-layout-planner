@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { Maximize } from "lucide-react";
+import { Maximize, RotateCw } from "lucide-react";
 import { useLayoutStore } from "@/store/layoutStore";
 
 export function LeftPanel() {
   const layoutOrder = useLayoutStore((s) => s.layoutOrder);
   const layouts = useLayoutStore((s) => s.layouts);
   const currentLayoutId = useLayoutStore((s) => s.currentLayoutId);
+  const selectedIds = useLayoutStore((s) => s.selectedIds);
   const createLayout = useLayoutStore((s) => s.createLayout);
   const renameLayout = useLayoutStore((s) => s.renameLayout);
   const deleteLayout = useLayoutStore((s) => s.deleteLayout);
   const selectLayout = useLayoutStore((s) => s.selectLayout);
+
+  const hasSelection = selectedIds.length > 0;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -127,6 +130,25 @@ export function LeftPanel() {
               <span className="shrink-0 text-xs text-muted-foreground">
                 Shift + 1
               </span>
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              disabled={!hasSelection}
+              onClick={() =>
+                window.dispatchEvent(new Event("rotate-selection"))
+              }
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              title={
+                hasSelection
+                  ? "Rotate selection 90°"
+                  : "Select buildings to rotate"
+              }
+            >
+              <RotateCw className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">Rotate</span>
+              <span className="shrink-0 text-xs text-muted-foreground">R</span>
             </button>
           </li>
         </ul>
