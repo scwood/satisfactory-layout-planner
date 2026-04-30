@@ -8,6 +8,8 @@ import {
   buildingBounds,
   clampScale,
   effectiveFootprint,
+  fitViewToContent,
+  getContentBounds,
   rectsIntersect,
   snapMeters,
 } from "@/lib/canvas";
@@ -62,6 +64,7 @@ export function CanvasStage() {
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const layout = useLayoutStore((s) => s.layouts[s.currentLayoutId]);
+  const currentLayoutId = useLayoutStore((s) => s.currentLayoutId);
   const selectedIds = useLayoutStore((s) => s.selectedIds);
   const setSelection = useLayoutStore((s) => s.setSelection);
   const updateBuilding = useLayoutStore((s) => s.updateBuilding);
@@ -149,6 +152,31 @@ export function CanvasStage() {
     };
   }, []);
 
+  const fitView = useCallback(() => {
+    const state = useLayoutStore.getState();
+    const current = state.layouts[state.currentLayoutId];
+    if (!current) return;
+    const allBuildings = Object.values(current.buildings);
+    const bounds = getContentBounds(allBuildings, BUILDING_TYPES_BY_KEY);
+    if (!bounds) return;
+    const vp = containerRef.current;
+    if (!vp) return;
+    setView(fitViewToContent(bounds, vp.clientWidth, vp.clientHeight));
+  }, []);
+
+  useEffect(() => {
+    const handler = () => fitView();
+    window.addEventListener("fit-view", handler);
+    return () => window.removeEventListener("fit-view", handler);
+  }, [fitView]);
+
+  // Fit view when the active layout changes, once the canvas has dimensions.
+  const hasSize = size.width > 0;
+  useEffect(() => {
+    if (!hasSize) return;
+    fitView();
+  }, [currentLayoutId, hasSize, fitView]);
+
   // Other keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -193,6 +221,9 @@ export function CanvasStage() {
       } else if (ctrl && (e.key === "v" || e.key === "V")) {
         e.preventDefault();
         pasteClipboard();
+      } else if (e.key === "!" || (e.shiftKey && e.key === "1")) {
+        e.preventDefault();
+        fitView();
       } else if (ctrl && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
         const current =
@@ -212,6 +243,7 @@ export function CanvasStage() {
     updateBuilding,
     copySelection,
     pasteClipboard,
+    fitView,
   ]);
 
   // Convert a stage pointer position to world meters.

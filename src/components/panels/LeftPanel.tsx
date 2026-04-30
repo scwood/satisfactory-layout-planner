@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { Maximize } from "lucide-react";
 import { useLayoutStore } from "@/store/layoutStore";
 
-export function LayoutsPanel() {
+export function LeftPanel() {
   const layoutOrder = useLayoutStore((s) => s.layoutOrder);
   const layouts = useLayoutStore((s) => s.layouts);
   const currentLayoutId = useLayoutStore((s) => s.currentLayoutId);
@@ -45,7 +46,7 @@ export function LayoutsPanel() {
           + New
         </button>
       </div>
-      <ul className="flex-1 overflow-y-auto py-1">
+      <ul className="overflow-y-auto py-1">
         {layoutOrder.map((id) => {
           const layout = layouts[id];
           if (!layout) return null;
@@ -109,6 +110,24 @@ export function LayoutsPanel() {
           );
         })}
       </ul>
+      <div className="border-t">
+        <div className="px-3 py-2">
+          <h2 className="font-medium">Actions</h2>
+        </div>
+        <ul className="py-1">
+          <li>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("fit-view"))}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent"
+              title="Fit view to content (Shift+1)"
+            >
+              <Maximize className="h-4 w-4 shrink-0" />
+              Fit view
+            </button>
+          </li>
+        </ul>
+      </div>
     </aside>
   );
 }

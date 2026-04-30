@@ -56,3 +56,46 @@ export function rectsIntersect(a: RectMeters, b: RectMeters) {
     a.y + a.height > b.y
   );
 }
+
+export function getContentBounds(
+  buildings: PlacedBuilding[],
+  typesMap: Record<string, BuildingType>,
+): RectMeters | null {
+  if (buildings.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const b of buildings) {
+    const type = typesMap[b.typeKey];
+    if (!type) continue;
+    const bounds = buildingBounds(b, type);
+    minX = Math.min(minX, bounds.x);
+    minY = Math.min(minY, bounds.y);
+    maxX = Math.max(maxX, bounds.x + bounds.width);
+    maxY = Math.max(maxY, bounds.y + bounds.height);
+  }
+  if (!isFinite(minX)) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+const FIT_PADDING_PX = 60;
+
+export function fitViewToContent(
+  bounds: RectMeters,
+  viewportWidth: number,
+  viewportHeight: number,
+): { x: number; y: number; scale: number } {
+  const contentW = bounds.width * PIXELS_PER_METER;
+  const contentH = bounds.height * PIXELS_PER_METER;
+  const scaleX = (viewportWidth - FIT_PADDING_PX * 2) / contentW;
+  const scaleY = (viewportHeight - FIT_PADDING_PX * 2) / contentH;
+  const scale = clampScale(Math.min(scaleX, scaleY));
+  const centerXPx = (bounds.x + bounds.width / 2) * PIXELS_PER_METER;
+  const centerYPx = (bounds.y + bounds.height / 2) * PIXELS_PER_METER;
+  return {
+    scale,
+    x: viewportWidth / 2 - centerXPx * scale,
+    y: viewportHeight / 2 - centerYPx * scale,
+  };
+}

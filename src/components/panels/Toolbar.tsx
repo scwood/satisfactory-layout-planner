@@ -9,7 +9,7 @@ export function Toolbar() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="View source on GitHub"
-        className="ml-auto hover:opacity-70"
+        className="ml-auto"
       >
         <img src={githubIcon} alt="" className="h-5 w-5" />
       </a>
