@@ -56,3 +56,7 @@ Path alias `@/` resolves to `src/`.
 - `npm run lint` — ESLint
 - `npm run preview` — preview the production build locally
 - `npm run deploy` — build and publish to GitHub Pages
+
+## Verification workflow
+
+**Do not start the dev server, open a browser via tabs/MCP, or render a preview** to verify UI changes — the user runs the dev server themselves and handles all manual sanity testing. After making changes, verify with `npm run build` (typecheck) and `npm run lint`, then hand off. Don't suggest opening a preview, and don't report a task as "verified in browser" yourself.

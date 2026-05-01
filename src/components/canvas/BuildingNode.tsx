@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 import type Konva from "konva";
 import type { PlacedBuilding } from "@/types/building";
 import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
 import { effectiveFootprint, snapMeters } from "@/lib/canvas";
-import { PIXELS_PER_METER } from "@/lib/constants";
+import { DARK_CANVAS_COLORS, PIXELS_PER_METER } from "@/lib/constants";
+import { useLayoutStore } from "@/store/layoutStore";
+import { useBuildingImage } from "@/hooks/useBuildingImage";
 
 interface BuildingNodeProps {
   building: PlacedBuilding;
@@ -14,36 +16,6 @@ interface BuildingNodeProps {
   onDragMove: (id: string, xMeters: number, yMeters: number) => void;
   onDragEnd: (id: string, xMeters: number, yMeters: number) => void;
   registerNode: (id: string, node: Konva.Node | null) => void;
-}
-
-const imageCache = new Map<string, HTMLImageElement>();
-
-function useBuildingImage(src: string | undefined) {
-  const [prevSrc, setPrevSrc] = useState(src);
-  const [image, setImage] = useState<HTMLImageElement | undefined>(() =>
-    src ? imageCache.get(src) : undefined,
-  );
-
-  if (src !== prevSrc) {
-    setPrevSrc(src);
-    setImage(src ? imageCache.get(src) : undefined);
-  }
-
-  useEffect(() => {
-    if (!src || imageCache.has(src)) return;
-    let cancelled = false;
-    const img = new Image();
-    img.src = src;
-    img.onload = () => {
-      imageCache.set(src, img);
-      if (!cancelled) setImage(img);
-    };
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
-
-  return image;
 }
 
 export function BuildingNode({
@@ -57,6 +29,8 @@ export function BuildingNode({
 }: BuildingNodeProps) {
   const type = BUILDING_TYPES_BY_KEY[building.typeKey];
   const image = useBuildingImage(type?.image);
+  const colors = DARK_CANVAS_COLORS;
+  const armed = useLayoutStore((s) => s.armedTypeKey !== null);
 
   const dragBoundFunc = useMemo(() => {
     return function (this: Konva.Node, pos: { x: number; y: number }) {
@@ -100,13 +74,17 @@ export function BuildingNode({
       }}
       x={xPx}
       y={yPx}
-      draggable
+      draggable={!armed}
       dragBoundFunc={dragBoundFunc}
       onMouseDown={(e) => {
+        // While armed, let the stage handler take over so the click stamps
+        // a new building on top instead of selecting this one.
+        if (armed) return;
         e.cancelBubble = true;
         onSelect(building.id, e.evt.shiftKey);
       }}
       onTap={(e) => {
+        if (armed) return;
         e.cancelBubble = true;
         onSelect(building.id, e.evt.shiftKey);
       }}
@@ -179,7 +157,7 @@ export function BuildingNode({
         <Rect
           width={rawW}
           height={rawH}
-          stroke={selected ? "oklch(0.55 0.2 250)" : "oklch(0.4 0 0)"}
+          stroke={selected ? colors.buildingStrokeSelected : undefined}
           strokeWidth={selected ? 2 : 1}
           strokeScaleEnabled={false}
           perfectDrawEnabled={false}
@@ -189,7 +167,7 @@ export function BuildingNode({
           <Text
             text={type.name}
             fontSize={10}
-            fill="oklch(0.2 0 0)"
+            fill={colors.buildingText}
             width={rawW}
             height={rawH}
             align="center"

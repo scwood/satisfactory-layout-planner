@@ -21,6 +21,7 @@ import {
 } from "@/lib/constants";
 import { Grid } from "./Grid";
 import { BuildingNode } from "./BuildingNode";
+import { BuildingGhost } from "./BuildingGhost";
 
 interface View {
   x: number;
@@ -72,6 +73,16 @@ export function CanvasStage() {
   const removeBuildings = useLayoutStore((s) => s.removeBuildings);
   const copySelection = useLayoutStore((s) => s.copySelection);
   const pasteClipboard = useLayoutStore((s) => s.pasteClipboard);
+  const armedTypeKey = useLayoutStore((s) => s.armedTypeKey);
+  const armedRotationDeg = useLayoutStore((s) => s.armedRotationDeg);
+  const armTool = useLayoutStore((s) => s.armTool);
+  const rotateArmed = useLayoutStore((s) => s.rotateArmed);
+  const placeBuildingAt = useLayoutStore((s) => s.placeBuildingAt);
+
+  const [cursorWorld, setCursorWorld] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const dragSnapshotRef = useRef<{
@@ -217,9 +228,18 @@ export function CanvasStage() {
         e.preventDefault();
         removeBuildings(selectedIds);
       } else if (e.key === "Escape") {
-        setSelection([]);
-        setMarquee(null);
+        if (armedTypeKey) {
+          armTool(null);
+        } else {
+          setSelection([]);
+          setMarquee(null);
+        }
       } else if ((e.key === "r" || e.key === "R") && !ctrl) {
+        if (armedTypeKey) {
+          e.preventDefault();
+          rotateArmed();
+          return;
+        }
         if (selectedIds.length === 0) return;
         e.preventDefault();
         rotateSelection();
@@ -253,6 +273,9 @@ export function CanvasStage() {
     pasteClipboard,
     fitView,
     rotateSelection,
+    armedTypeKey,
+    armTool,
+    rotateArmed,
   ]);
 
   // Convert a stage pointer position to world meters.
@@ -282,6 +305,22 @@ export function CanvasStage() {
       };
       setPanning(true);
       e.evt.preventDefault();
+      return;
+    }
+
+    // Armed-mode stamp: takes precedence over marquee/selection. Stamps even
+    // when the click lands on top of an existing building.
+    if (armedTypeKey && e.evt.button === 0) {
+      const type = BUILDING_TYPES_BY_KEY[armedTypeKey];
+      if (!type) return;
+      const world = pointerToWorldMeters(pointer.x, pointer.y);
+      const eff = effectiveFootprint(type, armedRotationDeg);
+      placeBuildingAt(
+        armedTypeKey,
+        world.x - eff.widthMeters / 2,
+        world.y - eff.depthMeters / 2,
+        armedRotationDeg,
+      );
       return;
     }
 
@@ -315,6 +354,10 @@ export function CanvasStage() {
     if (marquee) {
       const world = pointerToWorldMeters(pointer.x, pointer.y);
       setMarquee({ ...marquee, currentWorld: world });
+    }
+
+    if (armedTypeKey) {
+      setCursorWorld(pointerToWorldMeters(pointer.x, pointer.y));
     }
   };
 
@@ -454,9 +497,26 @@ export function CanvasStage() {
     ? "grabbing"
     : spaceHeld
       ? "grab"
-      : marquee
+      : armedTypeKey
         ? "crosshair"
-        : "default";
+        : marquee
+          ? "crosshair"
+          : "default";
+
+  // Compute the ghost's snapped top-left in meters (so it sits exactly where
+  // a click would place it). Centered on the cursor before snapping.
+  const ghost = (() => {
+    if (!armedTypeKey || !cursorWorld) return null;
+    const type = BUILDING_TYPES_BY_KEY[armedTypeKey];
+    if (!type) return null;
+    const eff = effectiveFootprint(type, armedRotationDeg);
+    return {
+      type,
+      xMeters: snapMeters(cursorWorld.x - eff.widthMeters / 2),
+      yMeters: snapMeters(cursorWorld.y - eff.depthMeters / 2),
+      rotationDeg: armedRotationDeg,
+    };
+  })();
 
   // Marquee rect in pixel-space (post-meter, pre-stage-transform).
   const marqueeRect = marquee
@@ -483,6 +543,13 @@ export function CanvasStage() {
       ref={containerRef}
       className="relative h-full w-full overflow-hidden bg-muted/20"
       style={{ cursor, touchAction: "none" }}
+      onMouseLeave={() => setCursorWorld(null)}
+      onContextMenu={(e) => {
+        if (armedTypeKey) {
+          e.preventDefault();
+          armTool(null);
+        }
+      }}
     >
       {size.width > 0 && size.height > 0 && (
         <Stage
@@ -534,6 +601,14 @@ export function CanvasStage() {
                 strokeWidth={1 / view.scale}
                 dash={[4 / view.scale, 4 / view.scale]}
                 perfectDrawEnabled={false}
+              />
+            )}
+            {ghost && (
+              <BuildingGhost
+                type={ghost.type}
+                xMeters={ghost.xMeters}
+                yMeters={ghost.yMeters}
+                rotationDeg={ghost.rotationDeg}
               />
             )}
           </Layer>

@@ -16,15 +16,26 @@ export interface Layout {
   buildings: Record<BuildingId, PlacedBuilding>;
 }
 
+type Rotation = PlacedBuilding["rotationDeg"];
+
 interface LayoutState {
   layouts: Record<LayoutId, Layout>;
   layoutOrder: LayoutId[];
   currentLayoutId: LayoutId;
   selectedIds: BuildingId[];
   clipboard: PlacedBuilding[];
+  armedTypeKey: BuildingTypeKey | null;
+  armedRotationDeg: Rotation;
 
   addBuilding: (building: PlacedBuilding) => void;
-  addBuildingFromType: (typeKey: BuildingTypeKey) => void;
+  placeBuildingAt: (
+    typeKey: BuildingTypeKey,
+    xMeters: number,
+    yMeters: number,
+    rotationDeg?: Rotation,
+  ) => BuildingId | null;
+  armTool: (typeKey: BuildingTypeKey | null) => void;
+  rotateArmed: () => void;
   updateBuilding: (id: BuildingId, patch: Partial<PlacedBuilding>) => void;
   updateBuildings: (
     updates: Array<{ id: BuildingId; patch: Partial<PlacedBuilding> }>,
@@ -72,6 +83,8 @@ export const useLayoutStore = create<LayoutState>()(
         currentLayoutId: initial.id,
         selectedIds: [],
         clipboard: [],
+        armedTypeKey: null,
+        armedRotationDeg: 0,
 
         addBuilding: (building) =>
           set((s) =>
@@ -81,30 +94,39 @@ export const useLayoutStore = create<LayoutState>()(
             })),
           ),
 
-        addBuildingFromType: (typeKey) => {
+        placeBuildingAt: (typeKey, xMeters, yMeters, rotationDeg) => {
           const type = BUILDING_TYPES.find((t) => t.key === typeKey);
-          if (!type) return;
-          const state = get();
-          const current = state.layouts[state.currentLayoutId];
-          if (!current) return;
-          const count = Object.keys(current.buildings).length;
-          const offset = snap((count % 8) * 4);
+          if (!type) return null;
           const id = newId();
           const placed: PlacedBuilding = {
             id,
             typeKey,
-            xMeters: offset,
-            yMeters: offset,
-            rotationDeg: 0,
+            xMeters: snap(xMeters),
+            yMeters: snap(yMeters),
+            rotationDeg: rotationDeg ?? get().armedRotationDeg,
           };
-          set((s) => ({
-            ...updateCurrent(s, (l) => ({
+          set((s) =>
+            updateCurrent(s, (l) => ({
               ...l,
               buildings: { ...l.buildings, [id]: placed },
             })),
-            selectedIds: [id],
-          }));
+          );
+          return id;
         },
+
+        armTool: (typeKey) =>
+          set((s) => ({
+            armedTypeKey: typeKey,
+            // Reset rotation when switching tools (or disarming) so each
+            // arming starts from a predictable orientation.
+            armedRotationDeg:
+              typeKey === s.armedTypeKey ? s.armedRotationDeg : 0,
+          })),
+
+        rotateArmed: () =>
+          set((s) => ({
+            armedRotationDeg: ((s.armedRotationDeg + 90) % 360) as Rotation,
+          })),
 
         updateBuilding: (id, patch) =>
           set((s) =>

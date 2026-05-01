@@ -1,8 +1,7 @@
 import { Line } from "react-konva";
 import {
-  FOUNDATION_LINE_COLOR,
+  DARK_CANVAS_COLORS,
   FOUNDATION_METERS,
-  GRID_COLOR,
   MIN_SCALE_FOR_FINE_GRID,
   PIXELS_PER_METER,
   SNAP_UNIT_METERS,
@@ -24,6 +23,9 @@ interface GridProps {
  * inherits the Stage transform.
  */
 export function Grid({ width, height, offsetX, offsetY, scale }: GridProps) {
+  const { grid: GRID_COLOR, foundation: FOUNDATION_LINE_COLOR } =
+    DARK_CANVAS_COLORS;
+
   // Visible world rect, in unscaled stage pixels.
   const left = -offsetX / scale;
   const top = -offsetY / scale;
