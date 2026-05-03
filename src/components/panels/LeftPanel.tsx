@@ -1,12 +1,29 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Maximize, RotateCw } from "lucide-react";
 import { useLayoutStore } from "@/store/layoutStore";
+import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
 
 export function LeftPanel() {
   const layoutOrder = useLayoutStore((s) => s.layoutOrder);
   const layouts = useLayoutStore((s) => s.layouts);
   const currentLayoutId = useLayoutStore((s) => s.currentLayoutId);
   const selectedIds = useLayoutStore((s) => s.selectedIds);
+  const currentLayout = layouts[currentLayoutId];
+
+  const buildingCounts = useMemo(() => {
+    if (!currentLayout) return [];
+    const counts = new Map<string, number>();
+    for (const b of Object.values(currentLayout.buildings)) {
+      counts.set(b.typeKey, (counts.get(b.typeKey) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([key, count]) => ({
+        key,
+        count,
+        name: BUILDING_TYPES_BY_KEY[key]?.name ?? key,
+      }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [currentLayout]);
   const createLayout = useLayoutStore((s) => s.createLayout);
   const renameLayout = useLayoutStore((s) => s.renameLayout);
   const deleteLayout = useLayoutStore((s) => s.deleteLayout);
@@ -153,6 +170,25 @@ export function LeftPanel() {
           </li>
         </ul>
       </div>
+      {buildingCounts.length > 0 && (
+        <div className="mt-auto border-t">
+          <div className="px-3 py-2">
+            <h2 className="font-medium">Summary</h2>
+          </div>
+          <ul className="pb-3 text-xs">
+            {buildingCounts.map(({ key, count, name }) => (
+              <li key={key} className="flex items-center gap-2 px-3 leading-5">
+                <span className="flex-1 truncate" title={name}>
+                  {name}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </aside>
   );
 }
