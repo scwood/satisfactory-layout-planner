@@ -148,6 +148,7 @@ export function BuildingNode({
                 width={drawW}
                 height={drawH}
                 perfectDrawEnabled={false}
+                listening={false}
               />
             );
           })()
@@ -162,11 +163,11 @@ export function BuildingNode({
         <Rect
           width={rawW}
           height={rawH}
+          fill="transparent"
           stroke={selected ? colors.buildingStrokeSelected : undefined}
           strokeWidth={selected ? 2 : 1}
           strokeScaleEnabled={false}
           perfectDrawEnabled={false}
-          listening={false}
         />
         {!image && (
           <Text
