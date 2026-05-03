@@ -72,11 +72,16 @@ export function BuildingNode({
         registerNode(building.id, node);
         return () => registerNode(building.id, null);
       }}
+      name="building"
+      id={building.id}
       x={xPx}
       y={yPx}
       draggable={!armed}
       dragBoundFunc={dragBoundFunc}
       onMouseDown={(e) => {
+        // Middle-click bubbles up to the stage so it can arm the tool from
+        // this building's type/rotation.
+        if (e.evt.button === 1) return;
         // While armed, let the stage handler take over so the click stamps
         // a new building on top instead of selecting this one.
         if (armed) return;

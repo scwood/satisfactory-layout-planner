@@ -34,7 +34,7 @@ interface LayoutState {
     yMeters: number,
     rotationDeg?: Rotation,
   ) => BuildingId | null;
-  armTool: (typeKey: BuildingTypeKey | null) => void;
+  armTool: (typeKey: BuildingTypeKey | null, rotationDeg?: Rotation) => void;
   rotateArmed: () => void;
   updateBuilding: (id: BuildingId, patch: Partial<PlacedBuilding>) => void;
   updateBuildings: (
@@ -114,13 +114,19 @@ export const useLayoutStore = create<LayoutState>()(
           return id;
         },
 
-        armTool: (typeKey) =>
+        armTool: (typeKey, rotationDeg) =>
           set((s) => ({
             armedTypeKey: typeKey,
             // Reset rotation when switching tools (or disarming) so each
-            // arming starts from a predictable orientation.
+            // arming starts from a predictable orientation. An explicit
+            // rotation overrides this — used when arming from an existing
+            // building so the ghost matches its source.
             armedRotationDeg:
-              typeKey === s.armedTypeKey ? s.armedRotationDeg : 0,
+              rotationDeg !== undefined
+                ? rotationDeg
+                : typeKey === s.armedTypeKey
+                  ? s.armedRotationDeg
+                  : 0,
           })),
 
         rotateArmed: () =>

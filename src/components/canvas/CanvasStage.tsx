@@ -330,6 +330,28 @@ export function CanvasStage() {
     mouseDownPosRef.current = { x: pointer.x, y: pointer.y };
 
     const middleMouse = e.evt.button === 1;
+
+    // Middle-click on a building arms the tool from that building's type and
+    // rotation (mirrors the in-game build-tool pick behavior). Middle-click
+    // on empty canvas falls through to pan.
+    if (middleMouse) {
+      const buildingGroup = e.target.findAncestor(".building", true);
+      if (buildingGroup) {
+        const id = buildingGroup.id();
+        const current =
+          useLayoutStore.getState().layouts[
+            useLayoutStore.getState().currentLayoutId
+          ];
+        const b = current?.buildings[id];
+        if (b) {
+          armTool(b.typeKey, b.rotationDeg);
+          setCursorWorld(pointerToWorldMeters(pointer.x, pointer.y));
+          e.evt.preventDefault();
+          return;
+        }
+      }
+    }
+
     const startsPan = spaceHeld || middleMouse;
 
     if (startsPan) {
