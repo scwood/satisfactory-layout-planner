@@ -5,6 +5,11 @@ import refineryImage from "@/assets/refinery.png";
 import manufacturerImage from "@/assets/manufacturer.png";
 import packagerImage from "@/assets/packager.png";
 import assemblerImage from "@/assets/assembler.png";
+import smelterImage from "@/assets/smelter.png";
+import conveyorSplitterImage from "@/assets/conveyor_splitter.png";
+import conveyorMergerImage from "@/assets/conveyor_merger.png";
+import conveyorBeltImage from "@/assets/conveyor_belt.png";
+import conveyorBeltTurnImage from "@/assets/conveyor_belt_turn.png";
 
 export const BUILDING_TYPES: BuildingType[] = [
   {
@@ -54,6 +59,46 @@ export const BUILDING_TYPES: BuildingType[] = [
     lengthMeters: 22,
     image: refineryImage,
     imageGuide: { x: 0.14, y: 0.045, w: 0.72, h: 0.91 },
+  },
+  {
+    key: "smelter",
+    name: "Smelter",
+    widthMeters: 6,
+    lengthMeters: 9,
+    image: smelterImage,
+    imageGuide: { x: 0.131, y: 0, w: 0.787, h: 0.989 },
+  },
+  {
+    key: "conveyor_belt",
+    name: "Conveyor Belt",
+    widthMeters: 2,
+    lengthMeters: 2,
+    image: conveyorBeltImage,
+    imageGuide: { x: 0, y: 0.14, w: 1, h: 0.72 },
+  },
+  {
+    key: "conveyor_belt_turn",
+    name: "Conveyor Belt Turn",
+    widthMeters: 3,
+    lengthMeters: 3,
+    image: conveyorBeltTurnImage,
+    imageGuide: { x: 0.11, y: 0, w: 0.88, h: 0.88 },
+  },
+  {
+    key: "conveyor_splitter",
+    name: "Conveyor Splitter",
+    widthMeters: 4,
+    lengthMeters: 4,
+    image: conveyorSplitterImage,
+    imageGuide: { x: 0.15, y: 0.15, w: 0.7, h: 0.7 },
+  },
+  {
+    key: "conveyor_merger",
+    name: "Conveyor Merger",
+    widthMeters: 4,
+    lengthMeters: 4,
+    image: conveyorMergerImage,
+    imageGuide: { x: 0.15, y: 0.15, w: 0.7, h: 0.7 },
   },
 ];
 
