@@ -72,9 +72,9 @@ export const BUILDING_TYPES: BuildingType[] = [
     key: "conveyor_belt",
     name: "Conveyor Belt",
     widthMeters: 2,
-    lengthMeters: 2,
+    lengthMeters: 1,
     image: conveyorBeltImage,
-    imageGuide: { x: 0, y: 0.14, w: 1, h: 0.72 },
+    imageGuide: { x: 0.14, y: 0, w: 0.72, h: 1 },
   },
   {
     key: "conveyor_belt_turn",
