@@ -1,4 +1,5 @@
 import type { BuildingType } from "@/types/building";
+import { measureLabel, LABEL_PLACEHOLDER_TEXT } from "@/lib/labelMeasure";
 import constructorImage from "@/assets/constructor.png";
 import foundryImage from "@/assets/foundry.png";
 import refineryImage from "@/assets/refinery.png";
@@ -100,6 +101,14 @@ export const BUILDING_TYPES: BuildingType[] = [
     lengthMeters: 4,
     image: conveyorMergerImage,
     imageGuide: { x: 0.15, y: 0.15, w: 0.7, h: 0.7 },
+  },
+  {
+    key: "text_label",
+    name: "Text Label",
+    // Type defaults match the placeholder's measured size so the placement
+    // ghost is the same shape as the label that lands.
+    ...measureLabel(LABEL_PLACEHOLDER_TEXT),
+    isLabel: true,
   },
 ];
 

@@ -114,13 +114,22 @@ export const clampScale = (s: number) =>
 
 /**
  * The width/depth of a placed building after rotation, in meters.
- * Rotations of 90° / 270° swap the two dimensions.
+ * Rotations of 90° / 270° swap the two dimensions. An optional `override`
+ * (typically the placed building itself) lets per-instance dimensions win
+ * over the type's defaults — currently used by labels, which resize to fit
+ * their text.
  */
-export function effectiveFootprint(type: BuildingType, rotationDeg: number) {
+export function effectiveFootprint(
+  type: BuildingType,
+  rotationDeg: number,
+  override?: { widthMeters?: number; lengthMeters?: number },
+) {
+  const w = override?.widthMeters ?? type.widthMeters;
+  const l = override?.lengthMeters ?? type.lengthMeters;
   const swap = rotationDeg === 90 || rotationDeg === 270;
   return {
-    widthMeters: swap ? type.lengthMeters : type.widthMeters,
-    depthMeters: swap ? type.widthMeters : type.lengthMeters,
+    widthMeters: swap ? l : w,
+    depthMeters: swap ? w : l,
   };
 }
 
@@ -129,7 +138,11 @@ export function effectiveFootprint(type: BuildingType, rotationDeg: number) {
  * (xMeters, yMeters) is treated as the top-left of the post-rotation footprint.
  */
 export function buildingBounds(b: PlacedBuilding, type: BuildingType) {
-  const { widthMeters, depthMeters } = effectiveFootprint(type, b.rotationDeg);
+  const { widthMeters, depthMeters } = effectiveFootprint(
+    type,
+    b.rotationDeg,
+    b,
+  );
   return {
     x: b.xMeters,
     y: b.yMeters,

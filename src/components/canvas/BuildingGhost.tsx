@@ -3,6 +3,13 @@ import type { BuildingType } from "@/types/building";
 import { effectiveFootprint } from "@/lib/canvas";
 import { DARK_CANVAS_COLORS, PIXELS_PER_METER } from "@/lib/constants";
 import { useBuildingImage } from "@/hooks/useBuildingImage";
+import {
+  LABEL_FONT_FAMILY,
+  LABEL_FONT_SIZE,
+  LABEL_FONT_STYLE,
+  LABEL_PADDING,
+  LABEL_PLACEHOLDER_TEXT,
+} from "@/lib/labelMeasure";
 
 interface BuildingGhostProps {
   type: BuildingType;
@@ -64,7 +71,12 @@ export function BuildingGhost({
             );
           })()
         ) : (
-          <Rect width={rawW} height={rawH} perfectDrawEnabled={false} />
+          <Rect
+            width={rawW}
+            height={rawH}
+            fill={type.isLabel ? "oklch(1 0 0 / 6%)" : undefined}
+            perfectDrawEnabled={false}
+          />
         )}
         <Rect
           width={rawW}
@@ -77,13 +89,17 @@ export function BuildingGhost({
         />
         {!image && (
           <Text
-            text={type.name}
-            fontSize={10}
+            text={type.isLabel ? LABEL_PLACEHOLDER_TEXT : type.name}
+            fontSize={type.isLabel ? LABEL_FONT_SIZE : 10}
+            fontFamily={type.isLabel ? LABEL_FONT_FAMILY : undefined}
+            fontStyle={type.isLabel ? LABEL_FONT_STYLE : undefined}
             fill={colors.buildingText}
             width={rawW}
             height={rawH}
+            padding={type.isLabel ? LABEL_PADDING : 0}
             align="center"
             verticalAlign="middle"
+            wrap={type.isLabel ? "word" : undefined}
             listening={false}
           />
         )}

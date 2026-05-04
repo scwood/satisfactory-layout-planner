@@ -7,6 +7,13 @@ import { effectiveFootprint, snapMeters } from "@/lib/canvas";
 import { DARK_CANVAS_COLORS, PIXELS_PER_METER } from "@/lib/constants";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useBuildingImage } from "@/hooks/useBuildingImage";
+import {
+  LABEL_FONT_FAMILY,
+  LABEL_FONT_SIZE,
+  LABEL_FONT_STYLE,
+  LABEL_PADDING,
+  measureLabel,
+} from "@/lib/labelMeasure";
 
 interface BuildingNodeProps {
   building: PlacedBuilding;
@@ -31,6 +38,7 @@ export function BuildingNode({
   const image = useBuildingImage(type?.image);
   const colors = DARK_CANVAS_COLORS;
   const armed = useLayoutStore((s) => s.armedTypeKey !== null);
+  const updateBuilding = useLayoutStore((s) => s.updateBuilding);
 
   const dragBoundFunc = useMemo(() => {
     return function (this: Konva.Node, pos: { x: number; y: number }) {
@@ -57,14 +65,17 @@ export function BuildingNode({
   const { widthMeters: effW, depthMeters: effD } = effectiveFootprint(
     type,
     building.rotationDeg,
+    building,
   );
   const xPx = building.xMeters * PIXELS_PER_METER;
   const yPx = building.yMeters * PIXELS_PER_METER;
   const wPx = effW * PIXELS_PER_METER;
   const hPx = effD * PIXELS_PER_METER;
 
-  const rawW = type.widthMeters * PIXELS_PER_METER;
-  const rawH = type.lengthMeters * PIXELS_PER_METER;
+  const rawWMeters = building.widthMeters ?? type.widthMeters;
+  const rawLengthMeters = building.lengthMeters ?? type.lengthMeters;
+  const rawW = rawWMeters * PIXELS_PER_METER;
+  const rawH = rawLengthMeters * PIXELS_PER_METER;
 
   return (
     <Group
@@ -85,6 +96,26 @@ export function BuildingNode({
         // While armed, let the stage handler take over so the click stamps
         // a new building on top instead of selecting this one.
         if (armed) return;
+        // Double-click on a label opens a prompt to edit its text. Detected
+        // via MouseEvent.detail (more reliable than Konva's dblclick on a
+        // draggable Group). Deferred via setTimeout so the queued mouseup
+        // can clear Konva's drag-pending state — otherwise mouse movement
+        // after the modal prompt closes drags the label to the cursor.
+        if (type.isLabel && e.evt.button === 0 && e.evt.detail === 2) {
+          e.cancelBubble = true;
+          const group = e.target.findAncestor(".building", true);
+          setTimeout(() => {
+            group?.stopDrag();
+            const next = window.prompt("Label text", building.text ?? "");
+            if (next !== null) {
+              updateBuilding(building.id, {
+                text: next,
+                ...measureLabel(next),
+              });
+            }
+          }, 0);
+          return;
+        }
         e.cancelBubble = true;
         onSelect(building.id, e.evt.shiftKey);
       }}
@@ -125,61 +156,93 @@ export function BuildingNode({
         offsetX={rawW / 2}
         offsetY={rawH / 2}
       >
-        {image ? (
-          (() => {
-            const guide = type.imageGuide ?? { x: 0, y: 0, w: 1, h: 1 };
-            const naturalW = image.naturalWidth || rawW;
-            const naturalH = image.naturalHeight || rawH;
-            // Scale X and Y independently so each guide value is self-
-            // contained: w controls horizontal fit, h controls vertical fit.
-            // If the configured guide aspect doesn't match the footprint, the
-            // image will be stretched — that's a useful tuning signal.
-            const scaleX = rawW / (guide.w * naturalW);
-            const scaleY = rawH / (guide.h * naturalH);
-            const drawW = naturalW * scaleX;
-            const drawH = naturalH * scaleY;
-            const offX = -guide.x * naturalW * scaleX;
-            const offY = -guide.y * naturalH * scaleY;
-            return (
-              <KonvaImage
-                image={image}
-                x={offX}
-                y={offY}
-                width={drawW}
-                height={drawH}
+        {type.isLabel ? (
+          <>
+            <Rect
+              width={rawW}
+              height={rawH}
+              fill="oklch(1 0 0 / 6%)"
+              stroke={
+                selected ? colors.buildingStrokeSelected : colors.buildingStroke
+              }
+              strokeWidth={selected ? 2 : 1}
+              strokeScaleEnabled={false}
+              perfectDrawEnabled={false}
+            />
+            <Text
+              text={building.text ?? ""}
+              fontSize={LABEL_FONT_SIZE}
+              fontFamily={LABEL_FONT_FAMILY}
+              fontStyle={LABEL_FONT_STYLE}
+              fill={colors.buildingText}
+              width={rawW}
+              height={rawH}
+              padding={LABEL_PADDING}
+              align="center"
+              verticalAlign="middle"
+              wrap="word"
+              listening={false}
+            />
+          </>
+        ) : (
+          <>
+            {image ? (
+              (() => {
+                const guide = type.imageGuide ?? { x: 0, y: 0, w: 1, h: 1 };
+                const naturalW = image.naturalWidth || rawW;
+                const naturalH = image.naturalHeight || rawH;
+                // Scale X and Y independently so each guide value is self-
+                // contained: w controls horizontal fit, h controls vertical fit.
+                // If the configured guide aspect doesn't match the footprint, the
+                // image will be stretched — that's a useful tuning signal.
+                const scaleX = rawW / (guide.w * naturalW);
+                const scaleY = rawH / (guide.h * naturalH);
+                const drawW = naturalW * scaleX;
+                const drawH = naturalH * scaleY;
+                const offX = -guide.x * naturalW * scaleX;
+                const offY = -guide.y * naturalH * scaleY;
+                return (
+                  <KonvaImage
+                    image={image}
+                    x={offX}
+                    y={offY}
+                    width={drawW}
+                    height={drawH}
+                    perfectDrawEnabled={false}
+                    listening={false}
+                  />
+                );
+              })()
+            ) : (
+              <Rect
+                width={rawW}
+                height={rawH}
+                strokeScaleEnabled={false}
                 perfectDrawEnabled={false}
+              />
+            )}
+            <Rect
+              width={rawW}
+              height={rawH}
+              fill="transparent"
+              stroke={selected ? colors.buildingStrokeSelected : undefined}
+              strokeWidth={selected ? 2 : 1}
+              strokeScaleEnabled={false}
+              perfectDrawEnabled={false}
+            />
+            {!image && (
+              <Text
+                text={type.name}
+                fontSize={10}
+                fill={colors.buildingText}
+                width={rawW}
+                height={rawH}
+                align="center"
+                verticalAlign="middle"
                 listening={false}
               />
-            );
-          })()
-        ) : (
-          <Rect
-            width={rawW}
-            height={rawH}
-            strokeScaleEnabled={false}
-            perfectDrawEnabled={false}
-          />
-        )}
-        <Rect
-          width={rawW}
-          height={rawH}
-          fill="transparent"
-          stroke={selected ? colors.buildingStrokeSelected : undefined}
-          strokeWidth={selected ? 2 : 1}
-          strokeScaleEnabled={false}
-          perfectDrawEnabled={false}
-        />
-        {!image && (
-          <Text
-            text={type.name}
-            fontSize={10}
-            fill={colors.buildingText}
-            width={rawW}
-            height={rawH}
-            align="center"
-            verticalAlign="middle"
-            listening={false}
-          />
+            )}
+          </>
         )}
       </Group>
     </Group>

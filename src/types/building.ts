@@ -21,6 +21,11 @@ export interface BuildingType {
    * the dominant axis of the drag.
    */
   linear?: boolean;
+  /**
+   * Free-form text annotations. Rendered as a labeled rectangle on the
+   * canvas instead of an image, and editable via double-click.
+   */
+  isLabel?: boolean;
 }
 
 export interface PlacedBuilding {
@@ -29,4 +34,12 @@ export interface PlacedBuilding {
   xMeters: number;
   yMeters: number;
   rotationDeg: 0 | 90 | 180 | 270;
+  text?: string;
+  /**
+   * Per-instance footprint override. Currently used by labels, which
+   * resize themselves to fit their text. When unset, the type's
+   * widthMeters / lengthMeters apply.
+   */
+  widthMeters?: number;
+  lengthMeters?: number;
 }

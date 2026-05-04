@@ -8,6 +8,7 @@ import type {
 import { STORAGE_KEY, SNAP_UNIT_METERS } from "@/lib/constants";
 import { BUILDING_TYPES } from "@/data/buildings";
 import { computeLinearRun } from "@/lib/canvas";
+import { measureLabel, LABEL_PLACEHOLDER_TEXT } from "@/lib/labelMeasure";
 
 export type LayoutId = string;
 
@@ -119,6 +120,12 @@ export const useLayoutStore = create<LayoutState>()(
             xMeters: snap(xMeters),
             yMeters: snap(yMeters),
             rotationDeg: rotationDeg ?? get().armedRotationDeg,
+            ...(type.isLabel
+              ? {
+                  text: LABEL_PLACEHOLDER_TEXT,
+                  ...measureLabel(LABEL_PLACEHOLDER_TEXT),
+                }
+              : {}),
           };
           set((s) =>
             updateCurrent(s, (l) => ({

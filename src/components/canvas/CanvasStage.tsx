@@ -209,7 +209,7 @@ export function CanvasStage() {
       if (!b) continue;
       const type = BUILDING_TYPES_BY_KEY[b.typeKey];
       if (!type) continue;
-      const eff = effectiveFootprint(type, b.rotationDeg);
+      const eff = effectiveFootprint(type, b.rotationDeg, b);
       const cx = b.xMeters + eff.widthMeters / 2;
       const cy = b.yMeters + eff.depthMeters / 2;
       items.push({ b, cx, cy });
@@ -229,7 +229,7 @@ export function CanvasStage() {
     const updates = items.map(({ b, cx, cy }) => {
       const type = BUILDING_TYPES_BY_KEY[b.typeKey]!;
       const newRot = ((b.rotationDeg + 90) % 360) as 0 | 90 | 180 | 270;
-      const newEff = effectiveFootprint(type, newRot);
+      const newEff = effectiveFootprint(type, newRot, b);
       // 90° CW rotation around the pivot in screen coords (y-down):
       // (dx, dy) -> (-dy, dx).
       const dx = cx - pivotX;
