@@ -9,6 +9,103 @@ import type { BuildingType, PlacedBuilding } from "@/types/building";
 export const snapMeters = (m: number) =>
   Math.round(m / SNAP_UNIT_METERS) * SNAP_UNIT_METERS;
 
+/**
+ * Snapped top-left of a single linear-building segment centered on the
+ * cursor — the same offset convention the standard building ghost uses, so
+ * a linear ghost can be placed identically before and after the first click.
+ */
+export function linearGhostTopLeft(
+  type: BuildingType,
+  cursor: { xMeters: number; yMeters: number },
+  rotationDeg: 0 | 90 | 180 | 270,
+): { xMeters: number; yMeters: number } {
+  const eff = effectiveFootprint(type, rotationDeg);
+  return {
+    xMeters: snapMeters(cursor.xMeters - eff.widthMeters / 2),
+    yMeters: snapMeters(cursor.yMeters - eff.depthMeters / 2),
+  };
+}
+
+/**
+ * Geometry for a straight run of a linear building (belt, pipe) placed via
+ * two-click drag.
+ *
+ * `anchor` is the **top-left of the first segment** (already grid-snapped —
+ * use `linearGhostTopLeft` to derive it from a cursor). `cursor` is the
+ * current free cursor position; the run extends from anchor toward whichever
+ * grid cell the cursor sits in along the run axis. `rotationDeg` locks the
+ * axis so the run never flips out from under the user.
+ *
+ * Storing the anchor as a segment top-left (instead of the click point) is
+ * what keeps the pre-click ghost and the post-click run preview perfectly
+ * aligned — they're both produced by this same function.
+ *
+ * Returns:
+ *  - `rotation` — orientation of each segment (0 vertical, 90 horizontal)
+ *  - `stepCount` — number of segments to stamp along the run
+ *  - `stepSign` — `+1` or `-1`, direction along the run axis
+ *  - `bounds` — meter-space rect covering the whole run (top-left + size)
+ *  - `segments` — top-left meter coords for each placed segment
+ */
+export function computeLinearRun(
+  type: BuildingType,
+  anchor: { xMeters: number; yMeters: number },
+  cursor: { xMeters: number; yMeters: number },
+  rotationDeg: 0 | 90 | 180 | 270,
+) {
+  const horizontal = rotationDeg === 90 || rotationDeg === 270;
+  const rotation: 0 | 90 = horizontal ? 90 : 0;
+  const segmentLength = type.lengthMeters;
+  const crossWidth = type.widthMeters;
+
+  // Derive the cursor's "end cell" using the same centering offset as the
+  // pre-click ghost, so the cursor stays visually centered on whichever
+  // segment is closest to it.
+  const endTopLeft = linearGhostTopLeft(type, cursor, rotationDeg);
+  const anchorAlong = horizontal ? anchor.xMeters : anchor.yMeters;
+  const endAlong = horizontal ? endTopLeft.xMeters : endTopLeft.yMeters;
+  const delta = endAlong - anchorAlong;
+  const stepCount = Math.round(Math.abs(delta) / segmentLength) + 1;
+  const stepSign: 1 | -1 = delta < 0 ? -1 : 1;
+
+  const segments: Array<{ xMeters: number; yMeters: number }> = [];
+  for (let i = 0; i < stepCount; i += 1) {
+    if (horizontal) {
+      segments.push({
+        xMeters: snapMeters(anchor.xMeters + stepSign * i * segmentLength),
+        yMeters: snapMeters(anchor.yMeters),
+      });
+    } else {
+      segments.push({
+        xMeters: snapMeters(anchor.xMeters),
+        yMeters: snapMeters(anchor.yMeters + stepSign * i * segmentLength),
+      });
+    }
+  }
+
+  const bounds = horizontal
+    ? {
+        x:
+          stepSign === 1
+            ? anchor.xMeters
+            : anchor.xMeters - (stepCount - 1) * segmentLength,
+        y: anchor.yMeters,
+        width: stepCount * segmentLength,
+        height: crossWidth,
+      }
+    : {
+        x: anchor.xMeters,
+        y:
+          stepSign === 1
+            ? anchor.yMeters
+            : anchor.yMeters - (stepCount - 1) * segmentLength,
+        width: crossWidth,
+        height: stepCount * segmentLength,
+      };
+
+  return { anchor, rotation, stepCount, stepSign, bounds, segments };
+}
+
 export const metersToPixels = (m: number) => m * PIXELS_PER_METER;
 export const pixelsToMeters = (p: number) => p / PIXELS_PER_METER;
 

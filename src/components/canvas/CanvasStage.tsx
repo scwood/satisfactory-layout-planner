@@ -7,9 +7,11 @@ import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
 import {
   buildingBounds,
   clampScale,
+  computeLinearRun,
   effectiveFootprint,
   fitViewToContent,
   getContentBounds,
+  linearGhostTopLeft,
   rectsIntersect,
   snapMeters,
 } from "@/lib/canvas";
@@ -78,6 +80,12 @@ export function CanvasStage() {
   const armTool = useLayoutStore((s) => s.armTool);
   const rotateArmed = useLayoutStore((s) => s.rotateArmed);
   const placeBuildingAt = useLayoutStore((s) => s.placeBuildingAt);
+  const placeLinearRun = useLayoutStore((s) => s.placeLinearRun);
+  const linearAnchor = useLayoutStore((s) => s.linearAnchor);
+  const setLinearAnchor = useLayoutStore((s) => s.setLinearAnchor);
+
+  const armedType = armedTypeKey ? BUILDING_TYPES_BY_KEY[armedTypeKey] : null;
+  const isLinearArmed = armedType?.linear === true;
 
   const [cursorWorld, setCursorWorld] = useState<{
     x: number;
@@ -263,7 +271,9 @@ export function CanvasStage() {
         e.preventDefault();
         removeBuildings(selectedIds);
       } else if (e.key === "Escape") {
-        if (armedTypeKey) {
+        if (linearAnchor) {
+          setLinearAnchor(null);
+        } else if (armedTypeKey) {
           armTool(null);
         } else {
           setSelection([]);
@@ -311,6 +321,9 @@ export function CanvasStage() {
     armedTypeKey,
     armTool,
     rotateArmed,
+    linearAnchor,
+    setLinearAnchor,
+    isLinearArmed,
   ]);
 
   // Convert a stage pointer position to world meters.
@@ -371,6 +384,29 @@ export function CanvasStage() {
       const type = BUILDING_TYPES_BY_KEY[armedTypeKey];
       if (!type) return;
       const world = pointerToWorldMeters(pointer.x, pointer.y);
+      if (type.linear) {
+        if (linearAnchor) {
+          placeLinearRun(
+            armedTypeKey,
+            linearAnchor,
+            { xMeters: world.x, yMeters: world.y },
+            armedRotationDeg,
+          );
+          setLinearAnchor(null);
+        } else {
+          // Anchor is the top-left of the first segment (already grid-snapped),
+          // matching the cursor-centered ghost so the ghost doesn't jump on
+          // click.
+          setLinearAnchor(
+            linearGhostTopLeft(
+              type,
+              { xMeters: world.x, yMeters: world.y },
+              armedRotationDeg,
+            ),
+          );
+        }
+        return;
+      }
       const eff = effectiveFootprint(type, armedRotationDeg);
       placeBuildingAt(
         armedTypeKey,
@@ -562,8 +598,11 @@ export function CanvasStage() {
 
   // Compute the ghost's snapped top-left in meters (so it sits exactly where
   // a click would place it). Centered on the cursor before snapping.
+  // Linear tools render through `linearRunPreview` instead so the pre-click
+  // ghost uses the same snapping convention as the post-click run.
   const ghost = (() => {
     if (!armedTypeKey || !cursorWorld) return null;
+    if (isLinearArmed) return null;
     const type = BUILDING_TYPES_BY_KEY[armedTypeKey];
     if (!type) return null;
     const eff = effectiveFootprint(type, armedRotationDeg);
@@ -574,6 +613,25 @@ export function CanvasStage() {
       rotationDeg: armedRotationDeg,
     };
   })();
+
+  // Linear preview also covers the pre-anchor case: a synthetic anchor
+  // derived from the cursor (same offset as a real click would pick) means
+  // the pre-click ghost and the post-click first segment land at exactly the
+  // same spot — no jump on click.
+  const linearRunPreview =
+    isLinearArmed && armedType && cursorWorld
+      ? computeLinearRun(
+          armedType,
+          linearAnchor ??
+            linearGhostTopLeft(
+              armedType,
+              { xMeters: cursorWorld.x, yMeters: cursorWorld.y },
+              armedRotationDeg,
+            ),
+          { xMeters: cursorWorld.x, yMeters: cursorWorld.y },
+          armedRotationDeg,
+        )
+      : null;
 
   // Marquee rect in pixel-space (post-meter, pre-stage-transform).
   const marqueeRect = marquee
@@ -593,8 +651,6 @@ export function CanvasStage() {
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  // bg-muted/20
-
   return (
     <div
       ref={containerRef}
@@ -604,7 +660,11 @@ export function CanvasStage() {
       onContextMenu={(e) => {
         if (armedTypeKey) {
           e.preventDefault();
-          armTool(null);
+          if (linearAnchor) {
+            setLinearAnchor(null);
+          } else {
+            armTool(null);
+          }
         }
       }}
     >
@@ -668,6 +728,17 @@ export function CanvasStage() {
                 rotationDeg={ghost.rotationDeg}
               />
             )}
+            {linearRunPreview &&
+              armedType &&
+              linearRunPreview.segments.map((seg, i) => (
+                <BuildingGhost
+                  key={i}
+                  type={armedType}
+                  xMeters={seg.xMeters}
+                  yMeters={seg.yMeters}
+                  rotationDeg={linearRunPreview.rotation}
+                />
+              ))}
           </Layer>
         </Stage>
       )}

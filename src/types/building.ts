@@ -15,6 +15,12 @@ export interface BuildingType {
    * bleeds beyond the footprint, mirroring the in-game appearance.
    */
   imageGuide?: { x: number; y: number; w: number; h: number };
+  /**
+   * Linear types (belts, pipes) use a two-click placement flow: click an
+   * anchor, then click the far end. The tool stamps a row of segments along
+   * the dominant axis of the drag.
+   */
+  linear?: boolean;
 }
 
 export interface PlacedBuilding {

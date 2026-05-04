@@ -7,6 +7,7 @@ import type {
 } from "@/types/building";
 import { STORAGE_KEY, SNAP_UNIT_METERS } from "@/lib/constants";
 import { BUILDING_TYPES } from "@/data/buildings";
+import { computeLinearRun } from "@/lib/canvas";
 
 export type LayoutId = string;
 
@@ -18,6 +19,11 @@ export interface Layout {
 
 type Rotation = PlacedBuilding["rotationDeg"];
 
+export interface PointMeters {
+  xMeters: number;
+  yMeters: number;
+}
+
 interface LayoutState {
   layouts: Record<LayoutId, Layout>;
   layoutOrder: LayoutId[];
@@ -26,6 +32,7 @@ interface LayoutState {
   clipboard: PlacedBuilding[];
   armedTypeKey: BuildingTypeKey | null;
   armedRotationDeg: Rotation;
+  linearAnchor: PointMeters | null;
 
   addBuilding: (building: PlacedBuilding) => void;
   placeBuildingAt: (
@@ -34,6 +41,13 @@ interface LayoutState {
     yMeters: number,
     rotationDeg?: Rotation,
   ) => BuildingId | null;
+  placeLinearRun: (
+    typeKey: BuildingTypeKey,
+    anchor: PointMeters,
+    end: PointMeters,
+    rotationDeg: Rotation,
+  ) => BuildingId[];
+  setLinearAnchor: (point: PointMeters | null) => void;
   armTool: (typeKey: BuildingTypeKey | null, rotationDeg?: Rotation) => void;
   rotateArmed: () => void;
   updateBuilding: (id: BuildingId, patch: Partial<PlacedBuilding>) => void;
@@ -85,6 +99,7 @@ export const useLayoutStore = create<LayoutState>()(
         clipboard: [],
         armedTypeKey: null,
         armedRotationDeg: 0,
+        linearAnchor: null,
 
         addBuilding: (building) =>
           set((s) =>
@@ -114,6 +129,35 @@ export const useLayoutStore = create<LayoutState>()(
           return id;
         },
 
+        placeLinearRun: (typeKey, anchor, end, rotationDeg) => {
+          const type = BUILDING_TYPES.find((t) => t.key === typeKey);
+          if (!type) return [];
+          const run = computeLinearRun(type, anchor, end, rotationDeg);
+
+          const ids: BuildingId[] = [];
+          const created: PlacedBuilding[] = run.segments.map((seg) => {
+            const id = newId();
+            ids.push(id);
+            return {
+              id,
+              typeKey,
+              xMeters: seg.xMeters,
+              yMeters: seg.yMeters,
+              rotationDeg: run.rotation,
+            };
+          });
+          set((s) =>
+            updateCurrent(s, (l) => {
+              const next = { ...l.buildings };
+              for (const b of created) next[b.id] = b;
+              return { ...l, buildings: next };
+            }),
+          );
+          return ids;
+        },
+
+        setLinearAnchor: (point) => set({ linearAnchor: point }),
+
         armTool: (typeKey, rotationDeg) =>
           set((s) => ({
             armedTypeKey: typeKey,
@@ -127,6 +171,7 @@ export const useLayoutStore = create<LayoutState>()(
                 : typeKey === s.armedTypeKey
                   ? s.armedRotationDeg
                   : 0,
+            linearAnchor: null,
           })),
 
         rotateArmed: () =>
@@ -252,6 +297,7 @@ export const useLayoutStore = create<LayoutState>()(
                 layoutOrder: [fresh.id],
                 currentLayoutId: fresh.id,
                 selectedIds: [],
+                linearAnchor: null,
               };
             }
 
@@ -262,12 +308,15 @@ export const useLayoutStore = create<LayoutState>()(
               layoutOrder: nextOrder,
               currentLayoutId: nextCurrent,
               selectedIds: s.currentLayoutId === id ? [] : s.selectedIds,
+              linearAnchor: s.currentLayoutId === id ? null : s.linearAnchor,
             };
           }),
 
         selectLayout: (id) =>
           set((s) =>
-            s.layouts[id] ? { currentLayoutId: id, selectedIds: [] } : s,
+            s.layouts[id]
+              ? { currentLayoutId: id, selectedIds: [], linearAnchor: null }
+              : s,
           ),
       };
     },

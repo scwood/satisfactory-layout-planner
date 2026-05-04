@@ -75,6 +75,7 @@ export const BUILDING_TYPES: BuildingType[] = [
     lengthMeters: 1,
     image: conveyorBeltImage,
     imageGuide: { x: 0.14, y: 0, w: 0.72, h: 1 },
+    linear: true,
   },
   {
     key: "conveyor_belt_turn",
