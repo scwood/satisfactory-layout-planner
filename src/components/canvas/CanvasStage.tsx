@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layer, Rect, Stage } from "react-konva";
+import { Group, Layer, Line, Rect, Stage } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useLayoutStore } from "@/store/layoutStore";
@@ -739,6 +739,50 @@ export function CanvasStage() {
                   rotationDeg={linearRunPreview.rotation}
                 />
               ))}
+            {linearAnchor &&
+              armedType &&
+              linearRunPreview &&
+              (() => {
+                // Three solid green triangles at the first segment's center,
+                // pointing along the run direction — mirrors the in-game
+                // belt-placement cue. Drawn in a rotated group so the
+                // triangle geometry is local and direction is one angle.
+                const eff = effectiveFootprint(armedType, armedRotationDeg);
+                const cx =
+                  (linearAnchor.xMeters + eff.widthMeters / 2) *
+                  PIXELS_PER_METER;
+                const cy =
+                  (linearAnchor.yMeters + eff.depthMeters / 2) *
+                  PIXELS_PER_METER;
+                const horizontal = linearRunPreview.rotation === 90;
+                const baseRotation = horizontal ? 0 : 90;
+                const rotation =
+                  baseRotation + (linearRunPreview.stepSign === -1 ? 180 : 0);
+                // Sizes in screen-px, scaled to world coords.
+                const halfLen = 3 / view.scale;
+                const halfWid = 3.5 / view.scale;
+                const spacing = 7 / view.scale;
+                return (
+                  <Group x={cx} y={cy} rotation={rotation} listening={false}>
+                    {[-1, 0, 1].map((offset) => (
+                      <Line
+                        key={offset}
+                        points={[
+                          offset * spacing + halfLen,
+                          0,
+                          offset * spacing - halfLen,
+                          -halfWid,
+                          offset * spacing - halfLen,
+                          halfWid,
+                        ]}
+                        closed
+                        fill="oklch(0.82 0.22 145)"
+                        perfectDrawEnabled={false}
+                      />
+                    ))}
+                  </Group>
+                );
+              })()}
           </Layer>
         </Stage>
       )}
