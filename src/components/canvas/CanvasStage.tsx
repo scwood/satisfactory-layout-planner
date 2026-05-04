@@ -306,6 +306,15 @@ export function CanvasStage() {
           ];
         if (!current) return;
         setSelection(Object.keys(current.buildings));
+      } else if (ctrl && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        useLayoutStore.temporal.getState().undo();
+      } else if (
+        (ctrl && e.shiftKey && (e.key === "z" || e.key === "Z")) ||
+        (ctrl && (e.key === "y" || e.key === "Y"))
+      ) {
+        e.preventDefault();
+        useLayoutStore.temporal.getState().redo();
       }
     };
     window.addEventListener("keydown", onKey);

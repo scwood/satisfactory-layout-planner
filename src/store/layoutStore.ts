@@ -1,5 +1,6 @@
-import { create } from "zustand";
+import { create, useStore } from "zustand";
 import { persist } from "zustand/middleware";
+import { temporal } from "zundo";
 import type {
   BuildingId,
   BuildingTypeKey,
@@ -90,243 +91,257 @@ const updateCurrent = (
 
 export const useLayoutStore = create<LayoutState>()(
   persist(
-    (set, get) => {
-      const initial = makeEmptyLayout("Layout 1");
-      return {
-        layouts: { [initial.id]: initial },
-        layoutOrder: [initial.id],
-        currentLayoutId: initial.id,
-        selectedIds: [],
-        clipboard: [],
-        armedTypeKey: null,
-        armedRotationDeg: 0,
-        linearAnchor: null,
+    temporal(
+      (set, get) => {
+        const initial = makeEmptyLayout("Layout 1");
+        return {
+          layouts: { [initial.id]: initial },
+          layoutOrder: [initial.id],
+          currentLayoutId: initial.id,
+          selectedIds: [],
+          clipboard: [],
+          armedTypeKey: null,
+          armedRotationDeg: 0,
+          linearAnchor: null,
 
-        addBuilding: (building) =>
-          set((s) =>
-            updateCurrent(s, (l) => ({
-              ...l,
-              buildings: { ...l.buildings, [building.id]: building },
-            })),
-          ),
+          addBuilding: (building) =>
+            set((s) =>
+              updateCurrent(s, (l) => ({
+                ...l,
+                buildings: { ...l.buildings, [building.id]: building },
+              })),
+            ),
 
-        placeBuildingAt: (typeKey, xMeters, yMeters, rotationDeg) => {
-          const type = BUILDING_TYPES.find((t) => t.key === typeKey);
-          if (!type) return null;
-          const id = newId();
-          const placed: PlacedBuilding = {
-            id,
-            typeKey,
-            xMeters: snap(xMeters),
-            yMeters: snap(yMeters),
-            rotationDeg: rotationDeg ?? get().armedRotationDeg,
-            ...(type.isLabel
-              ? {
-                  text: LABEL_PLACEHOLDER_TEXT,
-                  ...measureLabel(LABEL_PLACEHOLDER_TEXT),
-                }
-              : {}),
-          };
-          set((s) =>
-            updateCurrent(s, (l) => ({
-              ...l,
-              buildings: { ...l.buildings, [id]: placed },
-            })),
-          );
-          return id;
-        },
-
-        placeLinearRun: (typeKey, anchor, end, rotationDeg) => {
-          const type = BUILDING_TYPES.find((t) => t.key === typeKey);
-          if (!type) return [];
-          const run = computeLinearRun(type, anchor, end, rotationDeg);
-
-          const ids: BuildingId[] = [];
-          const created: PlacedBuilding[] = run.segments.map((seg) => {
+          placeBuildingAt: (typeKey, xMeters, yMeters, rotationDeg) => {
+            const type = BUILDING_TYPES.find((t) => t.key === typeKey);
+            if (!type) return null;
             const id = newId();
-            ids.push(id);
-            return {
+            const placed: PlacedBuilding = {
               id,
               typeKey,
-              xMeters: seg.xMeters,
-              yMeters: seg.yMeters,
-              rotationDeg: run.rotation,
+              xMeters: snap(xMeters),
+              yMeters: snap(yMeters),
+              rotationDeg: rotationDeg ?? get().armedRotationDeg,
+              ...(type.isLabel
+                ? {
+                    text: LABEL_PLACEHOLDER_TEXT,
+                    ...measureLabel(LABEL_PLACEHOLDER_TEXT),
+                  }
+                : {}),
             };
-          });
-          set((s) =>
-            updateCurrent(s, (l) => {
-              const next = { ...l.buildings };
-              for (const b of created) next[b.id] = b;
-              return { ...l, buildings: next };
-            }),
-          );
-          return ids;
-        },
-
-        setLinearAnchor: (point) => set({ linearAnchor: point }),
-
-        armTool: (typeKey, rotationDeg) =>
-          set((s) => ({
-            armedTypeKey: typeKey,
-            // Reset rotation when switching tools (or disarming) so each
-            // arming starts from a predictable orientation. An explicit
-            // rotation overrides this — used when arming from an existing
-            // building so the ghost matches its source.
-            armedRotationDeg:
-              rotationDeg !== undefined
-                ? rotationDeg
-                : typeKey === s.armedTypeKey
-                  ? s.armedRotationDeg
-                  : 0,
-            linearAnchor: null,
-          })),
-
-        rotateArmed: () =>
-          set((s) => ({
-            armedRotationDeg: ((s.armedRotationDeg + 90) % 360) as Rotation,
-          })),
-
-        updateBuilding: (id, patch) =>
-          set((s) =>
-            updateCurrent(s, (l) => {
-              const existing = l.buildings[id];
-              if (!existing) return l;
-              return {
+            set((s) =>
+              updateCurrent(s, (l) => ({
                 ...l,
-                buildings: { ...l.buildings, [id]: { ...existing, ...patch } },
-              };
-            }),
-          ),
+                buildings: { ...l.buildings, [id]: placed },
+              })),
+            );
+            return id;
+          },
 
-        updateBuildings: (updates) =>
-          set((s) =>
-            updateCurrent(s, (l) => {
-              const next = { ...l.buildings };
-              for (const { id, patch } of updates) {
-                const existing = next[id];
-                if (!existing) continue;
-                next[id] = { ...existing, ...patch };
-              }
-              return { ...l, buildings: next };
-            }),
-          ),
+          placeLinearRun: (typeKey, anchor, end, rotationDeg) => {
+            const type = BUILDING_TYPES.find((t) => t.key === typeKey);
+            if (!type) return [];
+            const run = computeLinearRun(type, anchor, end, rotationDeg);
 
-        removeBuildings: (ids) =>
-          set((s) => ({
-            ...updateCurrent(s, (l) => {
-              const next = { ...l.buildings };
-              for (const id of ids) delete next[id];
-              return { ...l, buildings: next };
-            }),
-            selectedIds: s.selectedIds.filter((sid) => !ids.includes(sid)),
-          })),
-
-        setSelection: (ids) => set({ selectedIds: ids }),
-
-        copySelection: () => {
-          const { layouts, currentLayoutId, selectedIds } = get();
-          const current = layouts[currentLayoutId];
-          if (!current) return;
-          set({
-            clipboard: selectedIds
-              .map((id) => current.buildings[id])
-              .filter((b): b is PlacedBuilding => Boolean(b)),
-          });
-        },
-
-        pasteClipboard: () => {
-          const { clipboard } = get();
-          if (clipboard.length === 0) return;
-          const offset = snap(2);
-          const newIds: BuildingId[] = [];
-          const newBuildings: Record<BuildingId, PlacedBuilding> = {};
-          for (const b of clipboard) {
-            const id = newId();
-            newIds.push(id);
-            newBuildings[id] = {
-              ...b,
-              id,
-              xMeters: snap(b.xMeters + offset),
-              yMeters: snap(b.yMeters + offset),
-            };
-          }
-          set((s) => ({
-            ...updateCurrent(s, (l) => ({
-              ...l,
-              buildings: { ...l.buildings, ...newBuildings },
-            })),
-            selectedIds: newIds,
-            // Update the clipboard so a subsequent paste cascades further.
-            clipboard: Object.values(newBuildings),
-          }));
-        },
-
-        clearAll: () =>
-          set((s) => ({
-            ...updateCurrent(s, (l) => ({ ...l, buildings: {} })),
-            selectedIds: [],
-            clipboard: [],
-          })),
-
-        createLayout: (name) => {
-          const layout = makeEmptyLayout(
-            name ?? `Layout ${get().layoutOrder.length + 1}`,
-          );
-          set((s) => ({
-            layouts: { ...s.layouts, [layout.id]: layout },
-            layoutOrder: [...s.layoutOrder, layout.id],
-            currentLayoutId: layout.id,
-            selectedIds: [],
-          }));
-          return layout.id;
-        },
-
-        renameLayout: (id, name) =>
-          set((s) => {
-            const existing = s.layouts[id];
-            if (!existing) return s;
-            return {
-              layouts: { ...s.layouts, [id]: { ...existing, name } },
-            };
-          }),
-
-        deleteLayout: (id) =>
-          set((s) => {
-            if (!s.layouts[id]) return s;
-            const nextLayouts = { ...s.layouts };
-            delete nextLayouts[id];
-            const nextOrder = s.layoutOrder.filter((lid) => lid !== id);
-
-            if (nextOrder.length === 0) {
-              const fresh = makeEmptyLayout("Layout 1");
+            const ids: BuildingId[] = [];
+            const created: PlacedBuilding[] = run.segments.map((seg) => {
+              const id = newId();
+              ids.push(id);
               return {
-                layouts: { [fresh.id]: fresh },
-                layoutOrder: [fresh.id],
-                currentLayoutId: fresh.id,
-                selectedIds: [],
-                linearAnchor: null,
+                id,
+                typeKey,
+                xMeters: seg.xMeters,
+                yMeters: seg.yMeters,
+                rotationDeg: run.rotation,
+              };
+            });
+            set((s) =>
+              updateCurrent(s, (l) => {
+                const next = { ...l.buildings };
+                for (const b of created) next[b.id] = b;
+                return { ...l, buildings: next };
+              }),
+            );
+            return ids;
+          },
+
+          setLinearAnchor: (point) => set({ linearAnchor: point }),
+
+          armTool: (typeKey, rotationDeg) =>
+            set((s) => ({
+              armedTypeKey: typeKey,
+              // Reset rotation when switching tools (or disarming) so each
+              // arming starts from a predictable orientation. An explicit
+              // rotation overrides this — used when arming from an existing
+              // building so the ghost matches its source.
+              armedRotationDeg:
+                rotationDeg !== undefined
+                  ? rotationDeg
+                  : typeKey === s.armedTypeKey
+                    ? s.armedRotationDeg
+                    : 0,
+              linearAnchor: null,
+            })),
+
+          rotateArmed: () =>
+            set((s) => ({
+              armedRotationDeg: ((s.armedRotationDeg + 90) % 360) as Rotation,
+            })),
+
+          updateBuilding: (id, patch) =>
+            set((s) =>
+              updateCurrent(s, (l) => {
+                const existing = l.buildings[id];
+                if (!existing) return l;
+                return {
+                  ...l,
+                  buildings: {
+                    ...l.buildings,
+                    [id]: { ...existing, ...patch },
+                  },
+                };
+              }),
+            ),
+
+          updateBuildings: (updates) =>
+            set((s) =>
+              updateCurrent(s, (l) => {
+                const next = { ...l.buildings };
+                for (const { id, patch } of updates) {
+                  const existing = next[id];
+                  if (!existing) continue;
+                  next[id] = { ...existing, ...patch };
+                }
+                return { ...l, buildings: next };
+              }),
+            ),
+
+          removeBuildings: (ids) =>
+            set((s) => ({
+              ...updateCurrent(s, (l) => {
+                const next = { ...l.buildings };
+                for (const id of ids) delete next[id];
+                return { ...l, buildings: next };
+              }),
+              selectedIds: s.selectedIds.filter((sid) => !ids.includes(sid)),
+            })),
+
+          setSelection: (ids) => set({ selectedIds: ids }),
+
+          copySelection: () => {
+            const { layouts, currentLayoutId, selectedIds } = get();
+            const current = layouts[currentLayoutId];
+            if (!current) return;
+            set({
+              clipboard: selectedIds
+                .map((id) => current.buildings[id])
+                .filter((b): b is PlacedBuilding => Boolean(b)),
+            });
+          },
+
+          pasteClipboard: () => {
+            const { clipboard } = get();
+            if (clipboard.length === 0) return;
+            const offset = snap(2);
+            const newIds: BuildingId[] = [];
+            const newBuildings: Record<BuildingId, PlacedBuilding> = {};
+            for (const b of clipboard) {
+              const id = newId();
+              newIds.push(id);
+              newBuildings[id] = {
+                ...b,
+                id,
+                xMeters: snap(b.xMeters + offset),
+                yMeters: snap(b.yMeters + offset),
               };
             }
+            set((s) => ({
+              ...updateCurrent(s, (l) => ({
+                ...l,
+                buildings: { ...l.buildings, ...newBuildings },
+              })),
+              selectedIds: newIds,
+              // Update the clipboard so a subsequent paste cascades further.
+              clipboard: Object.values(newBuildings),
+            }));
+          },
 
-            const nextCurrent =
-              s.currentLayoutId === id ? nextOrder[0] : s.currentLayoutId;
-            return {
-              layouts: nextLayouts,
-              layoutOrder: nextOrder,
-              currentLayoutId: nextCurrent,
-              selectedIds: s.currentLayoutId === id ? [] : s.selectedIds,
-              linearAnchor: s.currentLayoutId === id ? null : s.linearAnchor,
-            };
-          }),
+          clearAll: () =>
+            set((s) => ({
+              ...updateCurrent(s, (l) => ({ ...l, buildings: {} })),
+              selectedIds: [],
+              clipboard: [],
+            })),
 
-        selectLayout: (id) =>
-          set((s) =>
-            s.layouts[id]
-              ? { currentLayoutId: id, selectedIds: [], linearAnchor: null }
-              : s,
-          ),
-      };
-    },
+          createLayout: (name) => {
+            const layout = makeEmptyLayout(
+              name ?? `Layout ${get().layoutOrder.length + 1}`,
+            );
+            set((s) => ({
+              layouts: { ...s.layouts, [layout.id]: layout },
+              layoutOrder: [...s.layoutOrder, layout.id],
+              currentLayoutId: layout.id,
+              selectedIds: [],
+            }));
+            return layout.id;
+          },
+
+          renameLayout: (id, name) =>
+            set((s) => {
+              const existing = s.layouts[id];
+              if (!existing) return s;
+              return {
+                layouts: { ...s.layouts, [id]: { ...existing, name } },
+              };
+            }),
+
+          deleteLayout: (id) =>
+            set((s) => {
+              if (!s.layouts[id]) return s;
+              const nextLayouts = { ...s.layouts };
+              delete nextLayouts[id];
+              const nextOrder = s.layoutOrder.filter((lid) => lid !== id);
+
+              if (nextOrder.length === 0) {
+                const fresh = makeEmptyLayout("Layout 1");
+                return {
+                  layouts: { [fresh.id]: fresh },
+                  layoutOrder: [fresh.id],
+                  currentLayoutId: fresh.id,
+                  selectedIds: [],
+                  linearAnchor: null,
+                };
+              }
+
+              const nextCurrent =
+                s.currentLayoutId === id ? nextOrder[0] : s.currentLayoutId;
+              return {
+                layouts: nextLayouts,
+                layoutOrder: nextOrder,
+                currentLayoutId: nextCurrent,
+                selectedIds: s.currentLayoutId === id ? [] : s.selectedIds,
+                linearAnchor: s.currentLayoutId === id ? null : s.linearAnchor,
+              };
+            }),
+
+          selectLayout: (id) =>
+            set((s) =>
+              s.layouts[id]
+                ? { currentLayoutId: id, selectedIds: [], linearAnchor: null }
+                : s,
+            ),
+        };
+      },
+      {
+        // Only put building data in the undo stack — UI state like selection,
+        // clipboard, armed tool, and the in-progress belt anchor shouldn't
+        // unwind on Ctrl+Z.
+        partialize: (state) => ({ layouts: state.layouts }),
+        // Skip no-op set() calls (e.g. setSelection) by ref-comparing layouts.
+        equality: (a, b) => a.layouts === b.layouts,
+        limit: 100,
+      },
+    ),
     {
       name: STORAGE_KEY,
       version: 1,
@@ -353,6 +368,16 @@ export const useLayoutStore = create<LayoutState>()(
     },
   ),
 );
+
+export const useTemporalStore = <T>(
+  selector: (state: {
+    pastStates: unknown[];
+    futureStates: unknown[];
+    undo: (steps?: number) => void;
+    redo: (steps?: number) => void;
+    clear: () => void;
+  }) => T,
+): T => useStore(useLayoutStore.temporal, selector);
 
 export const useCurrentLayout = () =>
   useLayoutStore((s) => s.layouts[s.currentLayoutId]);

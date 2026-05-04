@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Maximize, RotateCw } from "lucide-react";
-import { useLayoutStore } from "@/store/layoutStore";
+import { Maximize, RotateCw, Undo2, Redo2 } from "lucide-react";
+import { useLayoutStore, useTemporalStore } from "@/store/layoutStore";
 import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
 
 export function LeftPanel() {
@@ -28,6 +28,9 @@ export function LeftPanel() {
   const renameLayout = useLayoutStore((s) => s.renameLayout);
   const deleteLayout = useLayoutStore((s) => s.deleteLayout);
   const selectLayout = useLayoutStore((s) => s.selectLayout);
+
+  const canUndo = useTemporalStore((s) => s.pastStates.length > 0);
+  const canRedo = useTemporalStore((s) => s.futureStates.length > 0);
 
   const hasSelection = selectedIds.length > 0;
 
@@ -166,6 +169,36 @@ export function LeftPanel() {
               <RotateCw className="h-4 w-4 shrink-0" />
               <span className="flex-1 truncate">Rotate</span>
               <span className="shrink-0 text-xs text-muted-foreground">R</span>
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              disabled={!canUndo}
+              onClick={() => useLayoutStore.temporal.getState().undo()}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              title={canUndo ? "Undo" : "Nothing to undo"}
+            >
+              <Undo2 className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">Undo</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                Ctrl + Z
+              </span>
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              disabled={!canRedo}
+              onClick={() => useLayoutStore.temporal.getState().redo()}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              title={canRedo ? "Redo" : "Nothing to redo"}
+            >
+              <Redo2 className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">Redo</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                Ctrl + Shift + Z
+              </span>
             </button>
           </li>
         </ul>
