@@ -72,6 +72,7 @@ export function CanvasStage() {
   const setSelection = useLayoutStore((s) => s.setSelection);
   const updateBuilding = useLayoutStore((s) => s.updateBuilding);
   const updateBuildings = useLayoutStore((s) => s.updateBuildings);
+  const rotateSelection = useLayoutStore((s) => s.rotateSelection);
   const removeBuildings = useLayoutStore((s) => s.removeBuildings);
   const copySelection = useLayoutStore((s) => s.copySelection);
   const pasteClipboard = useLayoutStore((s) => s.pasteClipboard);
@@ -188,71 +189,6 @@ export function CanvasStage() {
     window.addEventListener("fit-view", handler);
     return () => window.removeEventListener("fit-view", handler);
   }, [fitView]);
-
-  const rotateSelection = useCallback(() => {
-    const state = useLayoutStore.getState();
-    if (state.selectedIds.length === 0) return;
-    const current = state.layouts[state.currentLayoutId];
-    if (!current) return;
-
-    const items: Array<{
-      b: (typeof current.buildings)[string];
-      cx: number;
-      cy: number;
-    }> = [];
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const id of state.selectedIds) {
-      const b = current.buildings[id];
-      if (!b) continue;
-      const type = BUILDING_TYPES_BY_KEY[b.typeKey];
-      if (!type) continue;
-      const eff = effectiveFootprint(type, b.rotationDeg, b);
-      const cx = b.xMeters + eff.widthMeters / 2;
-      const cy = b.yMeters + eff.depthMeters / 2;
-      items.push({ b, cx, cy });
-      minX = Math.min(minX, b.xMeters);
-      minY = Math.min(minY, b.yMeters);
-      maxX = Math.max(maxX, b.xMeters + eff.widthMeters);
-      maxY = Math.max(maxY, b.yMeters + eff.depthMeters);
-    }
-    if (items.length === 0) return;
-
-    // Pivot at the combined AABB center so the whole selection rotates as a
-    // rigid group. With a single selection the pivot equals the building's
-    // own center, so behavior matches in-place rotation.
-    const pivotX = (minX + maxX) / 2;
-    const pivotY = (minY + maxY) / 2;
-
-    const updates = items.map(({ b, cx, cy }) => {
-      const type = BUILDING_TYPES_BY_KEY[b.typeKey]!;
-      const newRot = ((b.rotationDeg + 90) % 360) as 0 | 90 | 180 | 270;
-      const newEff = effectiveFootprint(type, newRot, b);
-      // 90° CW rotation around the pivot in screen coords (y-down):
-      // (dx, dy) -> (-dy, dx).
-      const dx = cx - pivotX;
-      const dy = cy - pivotY;
-      const newCx = pivotX - dy;
-      const newCy = pivotY + dx;
-      return {
-        id: b.id,
-        patch: {
-          rotationDeg: newRot,
-          xMeters: snapMeters(newCx - newEff.widthMeters / 2),
-          yMeters: snapMeters(newCy - newEff.depthMeters / 2),
-        },
-      };
-    });
-    updateBuildings(updates);
-  }, [updateBuildings]);
-
-  useEffect(() => {
-    const handler = () => rotateSelection();
-    window.addEventListener("rotate-selection", handler);
-    return () => window.removeEventListener("rotate-selection", handler);
-  }, [rotateSelection]);
 
   // Fit view when the active layout changes, once the canvas has dimensions.
   const hasSize = size.width > 0;

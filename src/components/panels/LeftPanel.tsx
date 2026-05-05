@@ -8,6 +8,9 @@ export function LeftPanel() {
   const layouts = useLayoutStore((s) => s.layouts);
   const currentLayoutId = useLayoutStore((s) => s.currentLayoutId);
   const selectedIds = useLayoutStore((s) => s.selectedIds);
+  const armedTypeKey = useLayoutStore((s) => s.armedTypeKey);
+  const rotateArmed = useLayoutStore((s) => s.rotateArmed);
+  const rotateSelection = useLayoutStore((s) => s.rotateSelection);
   const currentLayout = layouts[currentLayoutId];
 
   const buildingCounts = useMemo(() => {
@@ -33,6 +36,7 @@ export function LeftPanel() {
   const canRedo = useTemporalStore((s) => s.futureStates.length > 0);
 
   const hasSelection = selectedIds.length > 0;
+  const canRotate = hasSelection || armedTypeKey !== null;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -155,15 +159,21 @@ export function LeftPanel() {
           <li>
             <button
               type="button"
-              disabled={!hasSelection}
-              onClick={() =>
-                window.dispatchEvent(new Event("rotate-selection"))
-              }
+              disabled={!canRotate}
+              onClick={() => {
+                if (armedTypeKey) {
+                  rotateArmed();
+                } else {
+                  rotateSelection();
+                }
+              }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
               title={
-                hasSelection
-                  ? "Rotate selection 90°"
-                  : "Select buildings to rotate"
+                armedTypeKey
+                  ? "Rotate placement 90°"
+                  : hasSelection
+                    ? "Rotate selection 90°"
+                    : "Select buildings or arm a tool to rotate"
               }
             >
               <RotateCw className="h-4 w-4 shrink-0" />

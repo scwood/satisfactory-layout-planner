@@ -8,7 +8,8 @@ import type {
 } from "@/types/building";
 import { STORAGE_KEY, SNAP_UNIT_METERS } from "@/lib/constants";
 import { BUILDING_TYPES } from "@/data/buildings";
-import { computeLinearRun } from "@/lib/canvas";
+import { computeLinearRun, effectiveFootprint } from "@/lib/canvas";
+import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
 import { measureLabel, LABEL_PLACEHOLDER_TEXT } from "@/lib/labelMeasure";
 
 export type LayoutId = string;
@@ -56,6 +57,7 @@ interface LayoutState {
   updateBuildings: (
     updates: Array<{ id: BuildingId; patch: Partial<PlacedBuilding> }>,
   ) => void;
+  rotateSelection: () => void;
   removeBuildings: (ids: BuildingId[]) => void;
   setSelection: (ids: BuildingId[]) => void;
   copySelection: () => void;
@@ -215,6 +217,64 @@ export const useLayoutStore = create<LayoutState>()(
                 return { ...l, buildings: next };
               }),
             ),
+
+          rotateSelection: () => {
+            const { layouts, currentLayoutId, selectedIds } = get();
+            if (selectedIds.length === 0) return;
+            const current = layouts[currentLayoutId];
+            if (!current) return;
+
+            const items: Array<{
+              b: PlacedBuilding;
+              cx: number;
+              cy: number;
+            }> = [];
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+            for (const id of selectedIds) {
+              const b = current.buildings[id];
+              if (!b) continue;
+              const type = BUILDING_TYPES_BY_KEY[b.typeKey];
+              if (!type) continue;
+              const eff = effectiveFootprint(type, b.rotationDeg, b);
+              const cx = b.xMeters + eff.widthMeters / 2;
+              const cy = b.yMeters + eff.depthMeters / 2;
+              items.push({ b, cx, cy });
+              minX = Math.min(minX, b.xMeters);
+              minY = Math.min(minY, b.yMeters);
+              maxX = Math.max(maxX, b.xMeters + eff.widthMeters);
+              maxY = Math.max(maxY, b.yMeters + eff.depthMeters);
+            }
+            if (items.length === 0) return;
+
+            // Pivot at the combined AABB center so the whole selection rotates
+            // as a rigid group. With a single selection this collapses to the
+            // building's own center, matching in-place rotation.
+            const pivotX = (minX + maxX) / 2;
+            const pivotY = (minY + maxY) / 2;
+
+            const updates = items.map(({ b, cx, cy }) => {
+              const type = BUILDING_TYPES_BY_KEY[b.typeKey]!;
+              const newRot = ((b.rotationDeg + 90) % 360) as Rotation;
+              const newEff = effectiveFootprint(type, newRot, b);
+              // 90° CW around pivot in screen coords (y-down): (dx,dy) -> (-dy,dx).
+              const dx = cx - pivotX;
+              const dy = cy - pivotY;
+              const newCx = pivotX - dy;
+              const newCy = pivotY + dx;
+              return {
+                id: b.id,
+                patch: {
+                  rotationDeg: newRot,
+                  xMeters: snap(newCx - newEff.widthMeters / 2),
+                  yMeters: snap(newCy - newEff.depthMeters / 2),
+                },
+              };
+            });
+            get().updateBuildings(updates);
+          },
 
           removeBuildings: (ids) =>
             set((s) => ({
