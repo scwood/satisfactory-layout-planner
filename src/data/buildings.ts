@@ -7,10 +7,12 @@ import manufacturerImage from "@/assets/manufacturer.png";
 import packagerImage from "@/assets/packager.png";
 import assemblerImage from "@/assets/assembler.png";
 import smelterImage from "@/assets/smelter.png";
+import storageContainerImage from "@/assets/storage_container.png";
 import conveyorSplitterImage from "@/assets/conveyor_splitter.png";
 import conveyorMergerImage from "@/assets/conveyor_merger.png";
 import conveyorBeltImage from "@/assets/conveyor_belt.png";
 import conveyorBeltTurnImage from "@/assets/conveyor_belt_turn.png";
+import coalPoweredGeneratorImage from "@/assets/coal_powered_generator.png";
 
 export const BUILDING_TYPES: BuildingType[] = [
   {
@@ -20,6 +22,14 @@ export const BUILDING_TYPES: BuildingType[] = [
     lengthMeters: 16,
     image: assemblerImage,
     imageGuide: { x: 0.068, y: 0.03, w: 0.85, h: 0.94 },
+  },
+  {
+    key: "coal_powered_generator",
+    name: "Coal-Powered Generator",
+    widthMeters: 10,
+    lengthMeters: 26,
+    image: coalPoweredGeneratorImage,
+    imageGuide: { x: 0.083, y: 0.036, w: 0.834, h: 0.94 },
   },
   {
     key: "constructor",
@@ -70,6 +80,14 @@ export const BUILDING_TYPES: BuildingType[] = [
     imageGuide: { x: 0.131, y: 0, w: 0.787, h: 0.989 },
   },
   {
+    key: "storage_container",
+    name: "Storage Container",
+    widthMeters: 5,
+    lengthMeters: 11,
+    image: storageContainerImage,
+    imageGuide: { x: 0.1, y: 0.05, w: 0.8, h: 0.9 },
+  },
+  {
     key: "conveyor_belt",
     name: "Conveyor Belt",
     widthMeters: 2,
@@ -109,6 +127,14 @@ export const BUILDING_TYPES: BuildingType[] = [
     // ghost is the same shape as the label that lands.
     ...measureLabel(LABEL_PLACEHOLDER_TEXT),
     isLabel: true,
+  },
+  {
+    key: "wall",
+    name: "Wall",
+    // Walls have no inherent size; per-instance endpoints define the geometry.
+    widthMeters: 0,
+    lengthMeters: 0,
+    isWall: true,
   },
 ];
 
