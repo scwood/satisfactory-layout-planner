@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Group, Layer, Line, Rect, Stage } from "react-konva";
+import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useLayoutStore } from "@/store/layoutStore";
 import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
+import type { PlacedBuilding } from "@/types/building";
 import {
   buildingBounds,
   clampScale,
@@ -16,11 +17,18 @@ import {
   snapMeters,
 } from "@/lib/canvas";
 import {
+  DARK_CANVAS_COLORS,
   PIXELS_PER_METER,
   ZOOM_STEP,
   MIN_SCALE,
   MAX_SCALE,
 } from "@/lib/constants";
+import { formatWallDimension } from "@/lib/canvas";
+import {
+  LABEL_FONT_FAMILY,
+  LABEL_FONT_SIZE,
+  LABEL_FONT_STYLE,
+} from "@/lib/labelMeasure";
 import { Grid } from "./Grid";
 import { BuildingNode } from "./BuildingNode";
 import { BuildingGhost } from "./BuildingGhost";
@@ -82,11 +90,13 @@ export function CanvasStage() {
   const rotateArmed = useLayoutStore((s) => s.rotateArmed);
   const placeBuildingAt = useLayoutStore((s) => s.placeBuildingAt);
   const placeLinearRun = useLayoutStore((s) => s.placeLinearRun);
+  const placeWall = useLayoutStore((s) => s.placeWall);
   const linearAnchor = useLayoutStore((s) => s.linearAnchor);
   const setLinearAnchor = useLayoutStore((s) => s.setLinearAnchor);
 
   const armedType = armedTypeKey ? BUILDING_TYPES_BY_KEY[armedTypeKey] : null;
   const isLinearArmed = armedType?.linear === true;
+  const isWallArmed = armedType?.isWall === true;
 
   const [cursorWorld, setCursorWorld] = useState<{
     x: number;
@@ -96,7 +106,7 @@ export function CanvasStage() {
   const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const dragSnapshotRef = useRef<{
     primaryId: string;
-    starts: Map<string, { x: number; y: number }>;
+    starts: Map<string, { x: number; y: number; endX?: number; endY?: number }>;
   } | null>(null);
 
   const buildings = useMemo(
@@ -329,6 +339,19 @@ export function CanvasStage() {
       const type = BUILDING_TYPES_BY_KEY[armedTypeKey];
       if (!type) return;
       const world = pointerToWorldMeters(pointer.x, pointer.y);
+      if (type.isWall) {
+        const snapped = {
+          xMeters: snapMeters(world.x),
+          yMeters: snapMeters(world.y),
+        };
+        if (linearAnchor) {
+          placeWall(linearAnchor, snapped);
+          setLinearAnchor(null);
+        } else {
+          setLinearAnchor(snapped);
+        }
+        return;
+      }
       if (type.linear) {
         if (linearAnchor) {
           placeLinearRun(
@@ -474,11 +497,19 @@ export function CanvasStage() {
     const ids = state.selectedIds.includes(id) ? state.selectedIds : [id];
     const current = state.layouts[state.currentLayoutId];
     if (!current) return;
-    const starts = new Map<string, { x: number; y: number }>();
+    const starts = new Map<
+      string,
+      { x: number; y: number; endX?: number; endY?: number }
+    >();
     for (const sid of ids) {
       const b = current.buildings[sid];
       if (!b) continue;
-      starts.set(sid, { x: b.xMeters, y: b.yMeters });
+      starts.set(sid, {
+        x: b.xMeters,
+        y: b.yMeters,
+        endX: b.endXMeters,
+        endY: b.endYMeters,
+      });
     }
     dragSnapshotRef.current = { primaryId: id, starts };
   }, []);
@@ -509,6 +540,18 @@ export function CanvasStage() {
       const snap = dragSnapshotRef.current;
       dragSnapshotRef.current = null;
       if (!snap || snap.primaryId !== id || snap.starts.size <= 1) {
+        const start = snap?.starts.get(id);
+        if (start && start.endX !== undefined && start.endY !== undefined) {
+          const dx = xMeters - start.x;
+          const dy = yMeters - start.y;
+          updateBuilding(id, {
+            xMeters,
+            yMeters,
+            endXMeters: snapMeters(start.endX + dx),
+            endYMeters: snapMeters(start.endY + dy),
+          });
+          return;
+        }
         updateBuilding(id, { xMeters, yMeters });
         return;
       }
@@ -519,13 +562,17 @@ export function CanvasStage() {
       }
       const dx = xMeters - primaryStart.x;
       const dy = yMeters - primaryStart.y;
-      const updates = Array.from(snap.starts).map(([sid, start]) => ({
-        id: sid,
-        patch: {
+      const updates = Array.from(snap.starts).map(([sid, start]) => {
+        const patch: Partial<PlacedBuilding> = {
           xMeters: snapMeters(start.x + dx),
           yMeters: snapMeters(start.y + dy),
-        },
-      }));
+        };
+        if (start.endX !== undefined && start.endY !== undefined) {
+          patch.endXMeters = snapMeters(start.endX + dx);
+          patch.endYMeters = snapMeters(start.endY + dy);
+        }
+        return { id: sid, patch };
+      });
       updateBuildings(updates);
     },
     [updateBuilding, updateBuildings],
@@ -547,7 +594,7 @@ export function CanvasStage() {
   // ghost uses the same snapping convention as the post-click run.
   const ghost = (() => {
     if (!armedTypeKey || !cursorWorld) return null;
-    if (isLinearArmed) return null;
+    if (isLinearArmed || isWallArmed) return null;
     const type = BUILDING_TYPES_BY_KEY[armedTypeKey];
     if (!type) return null;
     const eff = effectiveFootprint(type, armedRotationDeg);
@@ -558,6 +605,20 @@ export function CanvasStage() {
       rotationDeg: armedRotationDeg,
     };
   })();
+
+  // Wall preview: a line from the placed anchor to the current cursor
+  // position (both snapped). Before the first click, only a small endpoint
+  // dot is shown at the cursor so the user can see where the snap will land.
+  const wallPreview =
+    isWallArmed && cursorWorld
+      ? {
+          start: linearAnchor,
+          end: {
+            xMeters: snapMeters(cursorWorld.x),
+            yMeters: snapMeters(cursorWorld.y),
+          },
+        }
+      : null;
 
   // Linear preview also covers the pre-anchor case: a synthetic anchor
   // derived from the cursor (same offset as a real click would pick) means
@@ -728,12 +789,106 @@ export function CanvasStage() {
                   </Group>
                 );
               })()}
+            {wallPreview && (
+              <WallPreview {...wallPreview} viewScale={view.scale} />
+            )}
           </Layer>
         </Stage>
       )}
 
       <ZoomBadge scale={view.scale} />
     </div>
+  );
+}
+
+interface WallPreviewProps {
+  start: { xMeters: number; yMeters: number } | null;
+  end: { xMeters: number; yMeters: number };
+  viewScale: number;
+}
+
+function WallPreview({ start, end, viewScale }: WallPreviewProps) {
+  const colors = DARK_CANVAS_COLORS;
+  const endXPx = end.xMeters * PIXELS_PER_METER;
+  const endYPx = end.yMeters * PIXELS_PER_METER;
+  // Endpoint dot sized in screen-px so it's stable across zooms.
+  const dotRadius = 3 / viewScale;
+  if (!start) {
+    // Pre-anchor: just a small marker at the snapped cursor.
+    return (
+      <Circle
+        x={endXPx}
+        y={endYPx}
+        radius={dotRadius}
+        fill={colors.buildingStrokeSelected}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  const startXPx = start.xMeters * PIXELS_PER_METER;
+  const startYPx = start.yMeters * PIXELS_PER_METER;
+  const lengthMeters = Math.hypot(
+    end.xMeters - start.xMeters,
+    end.yMeters - start.yMeters,
+  );
+  const midXPx = (startXPx + endXPx) / 2;
+  const midYPx = (startYPx + endYPx) / 2;
+  const rawAngleDeg =
+    (Math.atan2(endYPx - startYPx, endXPx - startXPx) * 180) / Math.PI;
+  const labelAngleDeg =
+    rawAngleDeg > 90
+      ? rawAngleDeg - 180
+      : rawAngleDeg <= -90
+        ? rawAngleDeg + 180
+        : rawAngleDeg;
+  const labelFontSize = LABEL_FONT_SIZE;
+  const labelBoxWidth = 120;
+  const perpOffset = labelFontSize + 4;
+  return (
+    <>
+      <Line
+        points={[startXPx, startYPx, endXPx, endYPx]}
+        stroke={colors.buildingStrokeSelected}
+        strokeWidth={2 / viewScale}
+        dash={[6 / viewScale, 4 / viewScale]}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+      <Circle
+        x={startXPx}
+        y={startYPx}
+        radius={dotRadius}
+        fill={colors.buildingStrokeSelected}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+      <Circle
+        x={endXPx}
+        y={endYPx}
+        radius={dotRadius}
+        fill={colors.buildingStrokeSelected}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+      {lengthMeters > 0 && (
+        <Text
+          x={midXPx}
+          y={midYPx}
+          text={formatWallDimension(lengthMeters)}
+          fontSize={labelFontSize}
+          fontFamily={LABEL_FONT_FAMILY}
+          fontStyle={LABEL_FONT_STYLE}
+          fill={colors.buildingText}
+          width={labelBoxWidth}
+          align="center"
+          rotation={labelAngleDeg}
+          offsetX={labelBoxWidth / 2}
+          offsetY={perpOffset}
+          listening={false}
+        />
+      )}
+    </>
   );
 }
 

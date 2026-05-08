@@ -8,7 +8,11 @@ import type {
 } from "@/types/building";
 import { STORAGE_KEY, SNAP_UNIT_METERS } from "@/lib/constants";
 import { BUILDING_TYPES } from "@/data/buildings";
-import { computeLinearRun, effectiveFootprint } from "@/lib/canvas";
+import {
+  buildingBounds,
+  computeLinearRun,
+  effectiveFootprint,
+} from "@/lib/canvas";
 import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
 import { measureLabel, LABEL_PLACEHOLDER_TEXT } from "@/lib/labelMeasure";
 
@@ -50,6 +54,7 @@ interface LayoutState {
     end: PointMeters,
     rotationDeg: Rotation,
   ) => BuildingId[];
+  placeWall: (anchor: PointMeters, end: PointMeters) => BuildingId | null;
   setLinearAnchor: (point: PointMeters | null) => void;
   armTool: (typeKey: BuildingTypeKey | null, rotationDeg?: Rotation) => void;
   rotateArmed: () => void;
@@ -167,6 +172,32 @@ export const useLayoutStore = create<LayoutState>()(
             return ids;
           },
 
+          placeWall: (anchor, end) => {
+            const x1 = snap(anchor.xMeters);
+            const y1 = snap(anchor.yMeters);
+            const x2 = snap(end.xMeters);
+            const y2 = snap(end.yMeters);
+            // Reject zero-length walls — usually a stray double-click.
+            if (x1 === x2 && y1 === y2) return null;
+            const id = newId();
+            const placed: PlacedBuilding = {
+              id,
+              typeKey: "wall",
+              xMeters: x1,
+              yMeters: y1,
+              rotationDeg: 0,
+              endXMeters: x2,
+              endYMeters: y2,
+            };
+            set((s) =>
+              updateCurrent(s, (l) => ({
+                ...l,
+                buildings: { ...l.buildings, [id]: placed },
+              })),
+            );
+            return id;
+          },
+
           setLinearAnchor: (point) => set({ linearAnchor: point }),
 
           armTool: (typeKey, rotationDeg) =>
@@ -238,14 +269,14 @@ export const useLayoutStore = create<LayoutState>()(
               if (!b) continue;
               const type = BUILDING_TYPES_BY_KEY[b.typeKey];
               if (!type) continue;
-              const eff = effectiveFootprint(type, b.rotationDeg, b);
-              const cx = b.xMeters + eff.widthMeters / 2;
-              const cy = b.yMeters + eff.depthMeters / 2;
+              const bounds = buildingBounds(b, type);
+              const cx = bounds.x + bounds.width / 2;
+              const cy = bounds.y + bounds.height / 2;
               items.push({ b, cx, cy });
-              minX = Math.min(minX, b.xMeters);
-              minY = Math.min(minY, b.yMeters);
-              maxX = Math.max(maxX, b.xMeters + eff.widthMeters);
-              maxY = Math.max(maxY, b.yMeters + eff.depthMeters);
+              minX = Math.min(minX, bounds.x);
+              minY = Math.min(minY, bounds.y);
+              maxX = Math.max(maxX, bounds.x + bounds.width);
+              maxY = Math.max(maxY, bounds.y + bounds.height);
             }
             if (items.length === 0) return;
 
@@ -255,21 +286,42 @@ export const useLayoutStore = create<LayoutState>()(
             const pivotX = (minX + maxX) / 2;
             const pivotY = (minY + maxY) / 2;
 
+            // 90° CW around pivot in screen coords (y-down): (dx,dy) -> (-dy,dx).
+            const rotPoint = (x: number, y: number) => ({
+              x: pivotX - (y - pivotY),
+              y: pivotY + (x - pivotX),
+            });
+
             const updates = items.map(({ b, cx, cy }) => {
               const type = BUILDING_TYPES_BY_KEY[b.typeKey]!;
+              if (
+                type.isWall &&
+                b.endXMeters !== undefined &&
+                b.endYMeters !== undefined
+              ) {
+                // Walls rotate by transforming both endpoints around the pivot.
+                // The wall's length and angle are preserved.
+                const a = rotPoint(b.xMeters, b.yMeters);
+                const c = rotPoint(b.endXMeters, b.endYMeters);
+                return {
+                  id: b.id,
+                  patch: {
+                    xMeters: snap(a.x),
+                    yMeters: snap(a.y),
+                    endXMeters: snap(c.x),
+                    endYMeters: snap(c.y),
+                  },
+                };
+              }
               const newRot = ((b.rotationDeg + 90) % 360) as Rotation;
               const newEff = effectiveFootprint(type, newRot, b);
-              // 90° CW around pivot in screen coords (y-down): (dx,dy) -> (-dy,dx).
-              const dx = cx - pivotX;
-              const dy = cy - pivotY;
-              const newCx = pivotX - dy;
-              const newCy = pivotY + dx;
+              const newCenter = rotPoint(cx, cy);
               return {
                 id: b.id,
                 patch: {
                   rotationDeg: newRot,
-                  xMeters: snap(newCx - newEff.widthMeters / 2),
-                  yMeters: snap(newCy - newEff.depthMeters / 2),
+                  xMeters: snap(newCenter.x - newEff.widthMeters / 2),
+                  yMeters: snap(newCenter.y - newEff.depthMeters / 2),
                 },
               };
             });
@@ -313,6 +365,12 @@ export const useLayoutStore = create<LayoutState>()(
                 id,
                 xMeters: snap(b.xMeters + offset),
                 yMeters: snap(b.yMeters + offset),
+                ...(b.endXMeters !== undefined && b.endYMeters !== undefined
+                  ? {
+                      endXMeters: snap(b.endXMeters + offset),
+                      endYMeters: snap(b.endYMeters + offset),
+                    }
+                  : {}),
               };
             }
             set((s) => ({

@@ -30,9 +30,11 @@ export function RightPanel() {
                 )}
               >
                 <span className="flex-1 truncate">{type.name}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {type.widthMeters}×{type.lengthMeters}m
-                </span>
+                {!type.isWall && (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {type.widthMeters}×{type.lengthMeters}m
+                  </span>
+                )}
               </button>
             </li>
           );

@@ -1,9 +1,21 @@
 import { useMemo } from "react";
-import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
+import {
+  Circle,
+  Group,
+  Image as KonvaImage,
+  Line,
+  Rect,
+  Text,
+} from "react-konva";
 import type Konva from "konva";
 import type { PlacedBuilding } from "@/types/building";
 import { BUILDING_TYPES_BY_KEY } from "@/data/buildings";
-import { effectiveFootprint, snapMeters } from "@/lib/canvas";
+import {
+  effectiveFootprint,
+  formatWallDimension,
+  snapMeters,
+  wallLengthMeters,
+} from "@/lib/canvas";
 import { DARK_CANVAS_COLORS, PIXELS_PER_METER } from "@/lib/constants";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useBuildingImage } from "@/hooks/useBuildingImage";
@@ -61,6 +73,26 @@ export function BuildingNode({
   }, []);
 
   if (!type) return null;
+
+  if (
+    type.isWall &&
+    building.endXMeters !== undefined &&
+    building.endYMeters !== undefined
+  ) {
+    return (
+      <WallBuildingNode
+        building={building}
+        selected={selected}
+        armed={armed}
+        onSelect={onSelect}
+        onDragStart={onDragStart}
+        onDragMove={onDragMove}
+        onDragEnd={onDragEnd}
+        registerNode={registerNode}
+        dragBoundFunc={dragBoundFunc}
+      />
+    );
+  }
 
   const { widthMeters: effW, depthMeters: effD } = effectiveFootprint(
     type,
@@ -245,6 +277,154 @@ export function BuildingNode({
           </>
         )}
       </Group>
+    </Group>
+  );
+}
+
+interface WallBuildingNodeProps {
+  building: PlacedBuilding;
+  selected: boolean;
+  armed: boolean;
+  onSelect: (id: string, additive: boolean) => void;
+  onDragStart: (id: string) => void;
+  onDragMove: (id: string, xMeters: number, yMeters: number) => void;
+  onDragEnd: (id: string, xMeters: number, yMeters: number) => void;
+  registerNode: (id: string, node: Konva.Node | null) => void;
+  dragBoundFunc: (
+    this: Konva.Node,
+    pos: { x: number; y: number },
+  ) => { x: number; y: number };
+}
+
+function WallBuildingNode({
+  building,
+  selected,
+  armed,
+  onSelect,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  registerNode,
+  dragBoundFunc,
+}: WallBuildingNodeProps) {
+  const colors = DARK_CANVAS_COLORS;
+  // Group origin sits at endpoint A (xMeters/yMeters); the line and label
+  // live in local coords so dragging the group translates the whole wall.
+  const xPx = building.xMeters * PIXELS_PER_METER;
+  const yPx = building.yMeters * PIXELS_PER_METER;
+  const dxPx = (building.endXMeters! - building.xMeters) * PIXELS_PER_METER;
+  const dyPx = (building.endYMeters! - building.yMeters) * PIXELS_PER_METER;
+  const lengthMeters = wallLengthMeters(building);
+  const midXPx = dxPx / 2;
+  const midYPx = dyPx / 2;
+  // Rotate the dimension label to read along the line. Flip 180° when the
+  // raw angle would put it upside-down (i.e. outside (-90°, 90°]).
+  const rawAngleDeg = (Math.atan2(dyPx, dxPx) * 180) / Math.PI;
+  const labelAngleDeg =
+    rawAngleDeg > 90
+      ? rawAngleDeg - 180
+      : rawAngleDeg <= -90
+        ? rawAngleDeg + 180
+        : rawAngleDeg;
+  // Same font sizing as Text Label buildings (world-pixel units) so the two
+  // stay visually identical at every zoom level.
+  const labelFontSize = LABEL_FONT_SIZE;
+  const labelBoxWidth = 120;
+  // Offset perpendicular to the line so the label sits just above it.
+  const perpOffset = labelFontSize + 4;
+
+  return (
+    <Group
+      ref={(node) => {
+        registerNode(building.id, node);
+        return () => registerNode(building.id, null);
+      }}
+      name="building"
+      id={building.id}
+      x={xPx}
+      y={yPx}
+      draggable={!armed}
+      dragBoundFunc={dragBoundFunc}
+      onMouseDown={(e) => {
+        if (e.evt.button === 1) return;
+        if (armed) return;
+        e.cancelBubble = true;
+        onSelect(building.id, e.evt.shiftKey);
+      }}
+      onTap={(e) => {
+        if (armed) return;
+        e.cancelBubble = true;
+        onSelect(building.id, e.evt.shiftKey);
+      }}
+      onDragStart={() => onDragStart(building.id)}
+      onDragMove={(e) => {
+        const node = e.target;
+        onDragMove(
+          building.id,
+          node.x() / PIXELS_PER_METER,
+          node.y() / PIXELS_PER_METER,
+        );
+      }}
+      onDragEnd={(e) => {
+        const node = e.target;
+        const xMeters = snapMeters(node.x() / PIXELS_PER_METER);
+        const yMeters = snapMeters(node.y() / PIXELS_PER_METER);
+        node.position({
+          x: xMeters * PIXELS_PER_METER,
+          y: yMeters * PIXELS_PER_METER,
+        });
+        onDragEnd(building.id, xMeters, yMeters);
+      }}
+    >
+      <Line
+        points={[0, 0, dxPx, dyPx]}
+        stroke={
+          selected ? colors.buildingStrokeSelected : colors.buildingStroke
+        }
+        strokeWidth={selected ? 3 : 2}
+        strokeScaleEnabled={false}
+        // Wide invisible hit area so the thin line is easy to click.
+        hitStrokeWidth={12}
+        perfectDrawEnabled={false}
+      />
+      {selected && (
+        <>
+          <Circle
+            x={0}
+            y={0}
+            radius={3}
+            fill={colors.buildingStrokeSelected}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+          <Circle
+            x={dxPx}
+            y={dyPx}
+            radius={3}
+            fill={colors.buildingStrokeSelected}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+        </>
+      )}
+      {lengthMeters > 0 && (
+        <Text
+          x={midXPx}
+          y={midYPx}
+          text={formatWallDimension(lengthMeters)}
+          fontSize={labelFontSize}
+          fontFamily={LABEL_FONT_FAMILY}
+          fontStyle={LABEL_FONT_STYLE}
+          fill={colors.buildingText}
+          width={labelBoxWidth}
+          align="center"
+          rotation={labelAngleDeg}
+          offsetX={labelBoxWidth / 2}
+          offsetY={perpOffset}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
     </Group>
   );
 }

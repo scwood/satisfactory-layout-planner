@@ -26,6 +26,12 @@ export interface BuildingType {
    * canvas instead of an image, and editable via double-click.
    */
   isLabel?: boolean;
+  /**
+   * Line-segment annotations representing factory floor boundaries.
+   * Two-click placement: anchor, then endpoint. xMeters/yMeters store
+   * endpoint A; endXMeters/endYMeters store endpoint B. Rotation is unused.
+   */
+  isWall?: boolean;
 }
 
 export interface PlacedBuilding {
@@ -42,4 +48,11 @@ export interface PlacedBuilding {
    */
   widthMeters?: number;
   lengthMeters?: number;
+  /**
+   * Endpoint B for wall segments. xMeters/yMeters are endpoint A.
+   * Both stored in absolute world meters; drag translates both by the
+   * same delta to preserve length and angle.
+   */
+  endXMeters?: number;
+  endYMeters?: number;
 }

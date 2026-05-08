@@ -1,4 +1,5 @@
 import {
+  FOUNDATION_METERS,
   PIXELS_PER_METER,
   SNAP_UNIT_METERS,
   MIN_SCALE,
@@ -122,8 +123,18 @@ export const clampScale = (s: number) =>
 export function effectiveFootprint(
   type: BuildingType,
   rotationDeg: number,
-  override?: { widthMeters?: number; lengthMeters?: number },
+  override?: PlacedBuilding,
 ) {
+  if (
+    type.isWall &&
+    override?.endXMeters !== undefined &&
+    override?.endYMeters !== undefined
+  ) {
+    return {
+      widthMeters: Math.abs(override.endXMeters - override.xMeters),
+      depthMeters: Math.abs(override.endYMeters - override.yMeters),
+    };
+  }
   const w = override?.widthMeters ?? type.widthMeters;
   const l = override?.lengthMeters ?? type.lengthMeters;
   const swap = rotationDeg === 90 || rotationDeg === 270;
@@ -135,9 +146,19 @@ export function effectiveFootprint(
 
 /**
  * Axis-aligned bounding box of a placed building in meter-space.
- * (xMeters, yMeters) is treated as the top-left of the post-rotation footprint.
+ * For most buildings, (xMeters, yMeters) is the top-left of the post-rotation
+ * footprint. Walls are special: xMeters/yMeters is endpoint A (which can sit
+ * anywhere along the AABB), so the AABB is derived from min/max of the two
+ * endpoints.
  */
 export function buildingBounds(b: PlacedBuilding, type: BuildingType) {
+  if (type.isWall && b.endXMeters !== undefined && b.endYMeters !== undefined) {
+    const minX = Math.min(b.xMeters, b.endXMeters);
+    const minY = Math.min(b.yMeters, b.endYMeters);
+    const maxX = Math.max(b.xMeters, b.endXMeters);
+    const maxY = Math.max(b.yMeters, b.endYMeters);
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
   const { widthMeters, depthMeters } = effectiveFootprint(
     type,
     b.rotationDeg,
@@ -149,6 +170,28 @@ export function buildingBounds(b: PlacedBuilding, type: BuildingType) {
     width: widthMeters,
     height: depthMeters,
   };
+}
+
+/**
+ * Length of a wall segment in meters. Returns 0 if the building isn't a
+ * fully-defined wall.
+ */
+export function wallLengthMeters(b: PlacedBuilding) {
+  if (b.endXMeters === undefined || b.endYMeters === undefined) return 0;
+  return Math.hypot(b.endXMeters - b.xMeters, b.endYMeters - b.yMeters);
+}
+
+/**
+ * Wall dimension readout in foundations. Whole numbers drop the decimal
+ * (`4 foundations`); fractional values show one decimal (`4.1 foundations`).
+ * 1m snap means values are integer multiples of 0.125, so one decimal is
+ * a deliberate rounding rather than the exact value.
+ */
+export function formatWallDimension(meters: number) {
+  const f = meters / FOUNDATION_METERS;
+  const rounded = Math.round(f * 10) / 10;
+  const text = Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
+  return `${text}f`;
 }
 
 export interface RectMeters {
