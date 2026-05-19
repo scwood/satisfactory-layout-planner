@@ -13,6 +13,8 @@ import conveyorMergerImage from "@/assets/conveyor_merger.png";
 import conveyorBeltImage from "@/assets/conveyor_belt.png";
 import conveyorBeltTurnImage from "@/assets/conveyor_belt_turn.png";
 import coalPoweredGeneratorImage from "@/assets/coal_powered_generator.png";
+import conveyorLiftFloorImage from "@/assets/conveyor_lift_floor.png";
+import conveyorLiftCeilingImage from "@/assets/conveyor_lift_ceiling.png";
 
 export const BUILDING_TYPES: BuildingType[] = [
   {
@@ -119,6 +121,22 @@ export const BUILDING_TYPES: BuildingType[] = [
     lengthMeters: 4,
     image: conveyorMergerImage,
     imageGuide: { x: 0.15, y: 0.15, w: 0.7, h: 0.7 },
+  },
+  {
+    key: "conveyor_lift_floor",
+    name: "Conveyor Lift from floor",
+    widthMeters: 2,
+    lengthMeters: 2,
+    image: conveyorLiftFloorImage,
+    imageGuide: { x: 0.17, y: 0.21, w: 0.47, h: 0.58 },
+  },
+  {
+    key: "conveyor_lift_ceiling",
+    name: "Conveyor Lift from ceiling",
+    widthMeters: 2,
+    lengthMeters: 2,
+    image: conveyorLiftCeilingImage,
+    imageGuide: { x: 0.18, y: 0.21, w: 0.46, h: 0.58 },
   },
   {
     key: "text_label",
